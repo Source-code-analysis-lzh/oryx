@@ -1,11 +1,10 @@
-# Developer
+# 开发者指南
 
-This guide is for developers and covers topics such as OpenAPI, environment variables, 
-resources, and ports, as well as development on Mac or using Docker.
+本指南面向开发者，涵盖了 OpenAPI、环境变量、资源、端口以及在 macOS 或 Docker 上进行开发的相关内容。
 
-## Develop All in macOS
+## 在 macOS 上进行开发
 
-Start redis and SRS by docker, set the candidate explicitly:
+通过 Docker 启动 Redis 和 SRS，并显式设置候选地址：
 
 ```bash
 docker stop redis 2>/dev/null || echo ok && docker rm -f redis srs 2>/dev/null &&
@@ -19,23 +18,23 @@ docker run --name srs --rm -it \
     -d ossrs/srs:5
 ```
 
-> Note: Use the intranet IP for WebRTC to set the candidate.
+> 注意：使用内网IP作为WebRTC的候选地址（candidate）进行设置。
 
-> Note: Stop service by `docker stop redis srs` and note that we stop redis to allow it to save data to disk.
+> 注意：通过 docker stop redis srs 停止服务，注意我们停止redis是为了让它将数据保存到磁盘。
 
-> Note: Also, you can run SRS by `(cd platform && ~/git/srs/trunk/objs/srs -c containers/conf/srs.release-local.conf)`
+> 注意：你也可以通过 `(cd platform && ~/git/srs/trunk/objs/srs -c containers/conf/srs.release-local.conf)` 运行SRS。
 
-> Note: You can set the candidate for WebRTC by `--env CANDIDATE=$(ifconfig en0 |grep 'inet ' |awk '{print $2}')`
+> 注意：你可以通过 `--env CANDIDATE=$(ifconfig en0 |grep 'inet ' |awk '{print $2}')` 设置WebRTC的候选地址。
 
-Run the platform backend, or run in GoLand:
+运行平台后端，或在 GoLand 中运行：
 
 ```bash
 (cd platform && go run .)
 ```
 
-> Note: Set `AUTO_SELF_SIGNED_CERTIFICATE=off` if no need to generate self-signed certificate.
+> 注意：如果不需要生成自签名证书，请将 `AUTO_SELF_SIGNED_CERTIFICATE` 设置为 `off`。
 
-Run all tests:
+运行所有测试:
 
 ```bash
 bash scripts/tools/secret.sh --output test/.env &&
@@ -43,17 +42,17 @@ bash scripts/tools/secret.sh --output test/.env &&
 (cd test && go test -timeout=1h -failfast -v --endpoint=https://localhost:2443 -init-self-signed-cert=false)
 ```
 
-Run the platform react ui, or run in WebStorm:
+运行平台的 React UI，或在 WebStorm 中运行：
 
 ```bash
 (cd ui && npm install && npm start)
 ```
 
-Access the browser: http://localhost:3000
+访问浏览器：http://localhost:3000
 
-## Develop the Docker Image
+## 开发 Docker 镜像
 
-Build the docker image:
+构建 Docker 镜像：
 
 ```bash
 docker rmi platform:latest 2>/dev/null || echo OK &&
@@ -61,7 +60,7 @@ docker build -t platform:latest -f Dockerfile . &&
 docker save -o platform.tar platform:latest
 ```
 
-Start a container:
+启动容器：
 
 ```bash
 docker stop redis 2>/dev/null || echo ok && docker rm -f redis srs 2>/dev/null &&
@@ -71,17 +70,17 @@ docker run --rm -it --name oryx -v $HOME/data:/data \
   platform
 ```
 
-Access [http://localhost/mgmt](http://localhost/mgmt) to manage Oryx.
+访问 [http://localhost/mgmt](http://localhost/mgmt) 来管理 Oryx。
 
-Or [http://srs.stack.local/mgmt](http://srs.stack.local/mgmt) to test Oryx with domain.
+或者访问 [http://srs.stack.local/mgmt](http://srs.stack.local/mgmt) 来使用域名测试 Oryx。
 
-To update the platform in docker:
+更新 Docker 中的平台：
 
 ```bash
 docker run --rm -it -v $(pwd)/platform:/g -w /g ossrs/srs:ubuntu20 make
 ```
 
-Start a container with the new platform:
+使用新平台启动容器：
 
 ```bash
 docker stop redis 2>/dev/null || echo ok && docker rm -f redis srs 2>/dev/null &&
@@ -92,14 +91,13 @@ docker run --rm -it --name oryx -v $HOME/data:/data \
   platform
 ```
 
-The platform has now been updated. It is also compatible with a debugging WebUI, which listens at 
-port 3000 and proxies to the platform.
+平台现已更新。它也兼容调试用的 WebUI，该 WebUI 监听端口 3000 并代理到平台。
 
-## Develop the Script Installer
+## 开发脚本安装程序
 
-> Note: Please note that BT plugin will use the current branch version, including develop version.
+> 注意：请注意 BT 插件将使用当前分支版本，包括开发版本。
 
-Build a docker image:
+构建 Docker 镜像：
 
 ```bash
 docker rm -f script 2>/dev/null &&
@@ -107,7 +105,7 @@ docker rmi srs-script-dev 2>/dev/null || echo OK &&
 docker build -t srs-script-dev -f scripts/setup-ubuntu/Dockerfile.script .
 ```
 
-Create a docker container in daemon:
+以守护进程模式创建 Docker 容器：
 
 ```bash
 docker rm -f script 2>/dev/null &&
@@ -117,9 +115,9 @@ docker run -p 2022:2022 -p 2443:2443 -p 1935:1935 -p 8000:8000/udp -p 10080:1008
     -d --rm -it -v $(pwd):/g -w /g --name=script srs-script-dev
 ```
 
-> Note: For Linux server, please use `--privileged -v /sys/fs/cgroup:/sys/fs/cgroup:ro` to start docker.
+> 注意：对于 Linux 服务器，请使用 `--privileged -v /sys/fs/cgroup:/sys/fs/cgroup:ro` 来启动 Docker。
 
-Build and save the script image to file:
+构建并将脚本镜像保存到文件：
 
 ```bash
 docker rmi platform:latest 2>/dev/null || echo OK &&
@@ -127,7 +125,7 @@ docker build -t platform:latest -f Dockerfile . &&
 docker save -o platform.tar platform:latest
 ```
 
-Enter the docker container:
+进入 Docker 容器：
 
 ```bash
 version=$(bash scripts/version.sh) &&
@@ -137,7 +135,7 @@ docker exec -it script docker tag platform:latest registry.cn-hangzhou.aliyuncs.
 docker exec -it script docker images
 ```
 
-Test the build script, in the docker container:
+在 Docker 容器中测试构建脚本：
 
 ```bash
 docker exec -it script rm -f /data/config/.env &&
@@ -146,7 +144,7 @@ bash scripts/setup-ubuntu/build.sh --output $(pwd)/build --extract &&
 docker exec -it script bash build/oryx/scripts/setup-ubuntu/install.sh --verbose
 ```
 
-Run test for script:
+运行脚本测试：
 
 ```bash
 rm -f test/oryx.test &&
@@ -164,7 +162,7 @@ docker exec -it script ./test/oryx.test -test.timeout=1h -test.failfast -test.v 
     -test.parallel 3
 ```
 
-Access the browser: [http://localhost:2022](http://localhost:2022)
+访问浏览器: [http://localhost:2022](http://localhost:2022)
 
 ## Develop the aaPanel Plugin
 
@@ -557,9 +555,9 @@ doctl compute domain records delete ossrs.net -f \
 echo "Record lighthouse.ossrs.net removed"
 ```
 
-## Develop the SSL Cert for HTTPS 
+## 开发 HTTPS 的 SSL 证书
 
-Create a domain for HTTPS:
+为 HTTPS 创建域名：
 
 ```bash
 LNAME=lego && LDOMAIN=ossrs.net &&
@@ -568,7 +566,9 @@ doctl compute domain records create $LDOMAIN \
     --record-ttl 3600
 ```
 
-Build and save the script image to file:
+> 注意：1. 定义变量 LNAME=lego 和 LDOMAIN=ossrs.net。 2. 使用 doctl 在 DigitalOcean 中为域名 ossrs.net 创建一条 A 记录。 3. 子域名为 lego，解析到与 ossrs.net 相同的 IP 地址。 4. 设置 TTL 为 1 小时。
+
+构建并将脚本镜像保存到文件：
 
 ```bash
 docker rmi platform:latest 2>/dev/null || echo OK &&
@@ -576,7 +576,7 @@ docker build -t platform:latest -f Dockerfile . &&
 docker save -o platform.tar platform:latest
 ```
 
-Copy and load the image to server:
+复制并加载镜像到服务器：
 
 ```bash
 ssh root@$LNAME.$LDOMAIN rm -f platform.tar* 2>/dev/null &&
@@ -591,7 +591,7 @@ ssh root@$LNAME.$LDOMAIN docker image prune -f &&
 ssh root@$LNAME.$LDOMAIN docker images
 ```
 
-Next, build the BT plugin and install it:
+接下来，构建 BT 插件并安装它：
 
 ```bash
 ssh root@$LNAME.$LDOMAIN bash /www/server/panel/plugin/oryx/install.sh uninstall 2>/dev/null || echo OK &&
@@ -601,14 +601,14 @@ ssh root@$LNAME.$LDOMAIN unzip -q bt-oryx.zip -d /www/server/panel/plugin &&
 ssh root@$LNAME.$LDOMAIN bash /www/server/panel/plugin/oryx/install.sh install
 ```
 
-On the server, setup the `.bashrc`:
+在服务器上，设置 `.bashrc`：
 
 ```bash
 export BT_KEY=xxxxxx
 export PYTHONIOENCODING=UTF-8
 ```
 
-You can use BT panel to install the plugin, or by command:
+你可以使用 BT 面板安装插件，或通过命令安装：
 
 ```bash
 ssh root@$LNAME.$LDOMAIN python3 /www/server/panel/plugin/oryx/bt_api_remove_site.py &&
@@ -619,7 +619,7 @@ ssh root@$LNAME.$LDOMAIN bash /www/server/panel/plugin/oryx/setup.sh \
     --www /www/wwwroot --site srs.stack.local
 ```
 
-Cleanup, remove the files and domain:
+清理，删除文件和域名：
 
 ```bash
 ssh root@$LNAME.$LDOMAIN rm -f platform.tar* bt-oryx.zip 2>/dev/null &&
@@ -629,21 +629,20 @@ domains=$(doctl compute domain records ls $LDOMAIN --no-header |grep $LNAME) && 
 doctl compute domain records delete $LDOMAIN $(echo $domains |awk '{print $1}') -f
 ```
 
-Query domain and droplet:
+查询域名和 droplet：
 
 ```bash
 doctl compute domain records ls ossrs.io |grep lego &&
 doctl compute droplet ls |grep lego
 ```
 
-## Develop the NGINX HLS CDN
+## 开发 NGINX HLS CDN
 
-Run Oryx by previous steps, such as [Develop All in macOS](#develop-all-in-macos), publish stream 
-and there should be a HLS stream:
+按照之前的步骤运行 Oryx，例如 [在 macOS 中开发所有功能](https://www.wenxiaobai.com/chat/200006#)，发布流后应该会有一个 HLS 流：
 
 * [http://localhost:2022/live/livestream.m3u8](http://localhost:2022/tools/player.html?url=http://localhost:2022/live/livestream.m3u8)
 
-Build the image of nginx:
+构建 NGINX 的镜像：
 
 ```bash
 docker rm -f nginx 2>/dev/null &&
@@ -651,10 +650,9 @@ docker rmi scripts/nginx-hls-cdn 2>/dev/null || echo OK &&
 docker build -t ossrs/oryx:nginx-hls-cdn scripts/nginx-hls-cdn
 ```
 
-> Note: The official image is build by [workflow](https://github.com/ossrs/oryx/actions/runs/5970907929) 
-> which is triggered manually.
+> 注意：官方镜像由 [workflow](https://github.com/ossrs/oryx/actions/runs/5970907929) 构建，该流程是手动触发的。
 
-If you want to use NGINX as proxy, run by docker:
+如果你想使用 NGINX 作为代理，通过 docker 运行：
 
 ```bash
 ORYX_SERVER=$(ifconfig en0 |grep 'inet ' |awk '{print $2}') &&
@@ -662,40 +660,38 @@ docker run --rm -it -p 80:80 --name nginx -e ORYX_SERVER=${ORYX_SERVER}:2022 \
     ossrs/oryx:nginx-hls-cdn
 ```
 
-There should be a new HLS stream, cached by NGINX:
+此时应该会有一个新的 HLS 流，由 NGINX 缓存：
 
 * [http://localhost/live/livestream.m3u8](http://localhost:2022/tools/player.html?url=http://localhost/live/livestream.m3u8)
 
-To test the CROS with `OPTIONS`, use [HTTP-REST](http://ossrs.net/http-rest/) tool, or by curl:
+要测试带有 `OPTIONS` 的 CROS，可以使用 [HTTP-REST](http://ossrs.net/http-rest/) 工具，或通过 curl：
 
 ```bash
 curl 'http://localhost/live/livestream.m3u8' -X 'OPTIONS' -H 'Origin: http://ossrs.net' -v
 curl 'http://localhost/live/livestream.m3u8' -X 'GET' -H 'Origin: http://ossrs.net' -v
 ```
 
-To start a [srs-bench](https://github.com/ossrs/srs-bench) to test the performance:
+要启动 [srs-bench](https://github.com/ossrs/srs-bench) 来测试性能：
 
 ```bash
 docker run --rm -d ossrs/srs:sb ./objs/sb_hls_load \
     -c 100 -r http://host.docker.internal/live/livestream.m3u8
 ```
 
-The load should be taken by NGINX, not the Oryx.
+负载应该由 NGINX 承担，而不是 Oryx。
 
-## Product the NGINX HLS CDN
+## 生产环境中的 NGINX HLS CDN
 
-Install Oryx by BT or aaPanel or docker, assume the domain is `bt.ossrs.net`, publish
-a RTMP stream to Oryx:
+通过 BT 或 aaPanel 或 docker 安装 Oryx，假设域名为 `bt.ossrs.net`，发布一个 RTMP 流到 Oryx：
 
 ```bash
 ffmpeg -re -i ~/git/srs/trunk/doc/source.flv -c copy \
     -f flv rtmp://bt.ossrs.net/live/livestream?secret=xxx
 ```
 
-Open the [http://bt.ossrs.net/live/livestream.m3u8](http://bt.ossrs.net/tools/player.html?url=http://bt.ossrs.net/live/livestream.m3u8) 
-to Check it.
+打开 [http://bt.ossrs.net/live/livestream.m3u8](http://bt.ossrs.net/tools/player.html?url=http://bt.ossrs.net/live/livestream.m3u8) 进行检查。
 
-Create a new domain `bt2.ossrs.net` for the same server:
+为同一服务器创建一个新域名 `bt2.ossrs.net`：
 
 ```bash
 doctl compute domain records create ossrs.net \
@@ -703,7 +699,7 @@ doctl compute domain records create ossrs.net \
     --record-ttl 3600
 ```
 
-Create a new WebSite `bt2.ossrs.net` by BT or aaPanel, proxy to NGINX HLS Edge server:
+通过 BT 或 aaPanel 创建一个新网站 `bt2.ossrs.net`，代理到 NGINX HLS 边缘服务器：
 
 ```nginx
 location /tools/ {
@@ -717,7 +713,7 @@ location / {
 }
 ```
 
-Start a NGINX HLS Edge server:
+启动 NGINX HLS 边缘服务器：
 
 ```bash
 docker rm -f oryx-nginx01 || echo OK &&
@@ -727,10 +723,9 @@ docker run --rm -it -e ORYX_SERVER=$PIP:2022 \
     ossrs/oryx:nginx-hls-cdn
 ```
 
-Open the [http://bt2.ossrs.net/live/livestream.m3u8](http://bt.ossrs.net/tools/player.html?url=http://bt2.ossrs.net/live/livestream.m3u8)
-to Check it.
+打开 [http://bt2.ossrs.net/live/livestream.m3u8](http://bt.ossrs.net/tools/player.html?url=http://bt2.ossrs.net/live/livestream.m3u8) 进行检查。
 
-Use curl to test the HLS cache:
+使用 curl 测试 HLS 缓存：
 
 ```bash
 curl -v http://bt.ossrs.net/live/livestream.m3u8
@@ -739,9 +734,7 @@ curl -v http://bt2.ossrs.net/live/livestream.m3u8
 curl -v http://bt2.ossrs.net/live/livestream.m3u8 -H 'Origin: http://test.com'
 ```
 
-Be aware that the cache will store the CORS headers as well. This means that if you query 
-and obtain HLS without CORS, it will remain without CORS even when a request includes an 
-Origin header that necessitates CORS.
+需要注意的是，缓存会同时存储 CORS 头信息。这意味着如果你查询并获取了没有 CORS 的 HLS，即使后续请求包含需要 CORS 的 Origin 头，它仍然会保持没有 CORS 的状态。
 
 ## Product the Lightsail Installer
 
@@ -801,27 +794,26 @@ helm install srs ~/git/srs-helm/stable/oryx-1.0.6.tgz \
 
 Finally, open [http://localhost](http://localhost) to check it.
 
-## Setup for OpenAI Feature Test Cases
+## 设置 OpenAI 功能测试用例
 
-Please setup the environment variable `OPENAI_API_KEY` and `OPENAI_PROXY`, if need to test the OpenAI 
-feature like transcript.
+如果需要测试 OpenAI 功能（如语音转录），请设置环境变量 `OPENAI_API_KEY` 和 `OPENAI_PROXY`。
 
-> Note: Already setup in the secret.sh script, no extra steps needed.
+> 注意：已在 secret.sh 脚本中设置，无需额外步骤。
 
-## Run test in Goland
+## 在 Goland 中运行测试
 
-Prepare the .env:
+准备 .env 文件：
 
 ```bash
 bash scripts/tools/secret.sh --output test/.env &&
 cp ~/git/srs/trunk/doc/source.200kbps.768x320.flv test/
 ```
 
-Run testcase in Goland.
+在 Goland 中运行测试用例。
 
-## Update SRS Demo Environment
+## 更新 SRS 演示环境
 
-To update the demo for Oryx, for bt.ossrs.net:
+更新 Oryx 的演示环境，针对 bt.ossrs.net：
 
 ```bash
 IMAGE=$(ssh root@ossrs.net docker images |grep oryx |grep v5 |awk '{print $1":"$2}' |head -n 1) &&
@@ -834,7 +826,7 @@ sleep 3 && ssh root@ossrs.net docker rm -f oryx &&
 ssh root@ossrs.net docker image prune -f
 ```
 
-For bt.ossrs.io:
+针对 bt.ossrs.io：
 
 ```bash
 IMAGE=$(ssh root@ossrs.io docker images |grep oryx |grep v5 |awk '{print $1":"$2}' |head -n 1) &&
@@ -847,23 +839,22 @@ sleep 3 && ssh root@ossrs.io docker rm -f oryx &&
 ssh root@ossrs.io docker image prune -f
 ```
 
-## Config SRS Container
+## 配置 SRS 容器
 
-The SRS container is configured by environment variables, which loads the `/data/config/.srs.env` 
-file. To build a test image:
+SRS 容器通过环境变量配置，加载 `/data/config/.srs.env` 文件。构建测试镜像：
 
 ```bash
 docker rmi oryx-env 2>/dev/null || echo OK &&
 docker build -t oryx-env -f Dockerfile .
 ```
 
-Setup the logging to file:
+设置日志写入文件：
 
 ```bash
 echo 'SRS_LOG_TANK=file' > $HOME/data/config/.srs.env
 ```
 
-Run Oryx by docker:
+通过 docker 运行 Oryx：
 
 ```bash
 docker run --rm -it -p 2022:2022 -p 2443:2443 -p 1935:1935 \
@@ -872,34 +863,33 @@ docker run --rm -it -p 2022:2022 -p 2443:2443 -p 1935:1935 \
   -v $HOME/data:/data oryx-env
 ```
 
-Note that the logs should be written to file, there is no log `write log to console`, instead there
-should be a log like `you can check log by`.
+注意日志应写入文件，控制台不会显示日志 `write log to console`，而是会显示 `you can check log by`。
 
 ## Go PPROF
 
-To analyze the performance of Oryx, you can enable the Go pprof tool:
+要分析 Oryx 的性能，可以启用 Go pprof 工具：
 
 ```bash
 GO_PPROF=localhost:6060 go run .
 ```
 
-Run CPU profile:
+运行 CPU 性能分析：
 
 ```bash
 go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
 ```
 
-Then use `top` to show the hot functions.
+然后使用 `top` 查看热点函数。
 
-## Setup for youtube-dl
+## 设置 youtube-dl
 
-Install pyinstaller:
+安装 pyinstaller：
 
 ```bash
 brew install pyinstaller
 ```
 
-Clone and build the [youtube-dl](https://github.com/ytdl-org/youtube-dl):
+克隆并构建 [youtube-dl](https://github.com/ytdl-org/youtube-dl)：
 
 ```bash
 cd ~/git && git clone https://github.com/ytdl-org/youtube-dl.git &&
@@ -907,7 +897,7 @@ cd ~/git/youtube-dl && pyinstaller --onefile --clean --noconfirm --name youtube-
 ln -sf ~/git/youtube-dl/dist/youtube-dl /opt/homebrew/bin/
 ```
 
-For linux server, to download the latest youtube-dl:
+对于 Linux 服务器，下载最新的 youtube-dl：
 
 ```bash
 curl -L -o /usr/local/bin/youtube-dl 'https://github.com/ytdl-org/ytdl-nightly/releases/latest/download/youtube-dl' &&
@@ -915,7 +905,7 @@ rm -f /usr/bin/python && ln -sf /usr/bin/python3 /usr/bin/python &&
 chmod +x /usr/local/bin/youtube-dl
 ```
 
-An alternative project is [yt-dlp](https://github.com/yt-dlp/yt-dlp) which is a fork of youtube-dl:
+替代项目 [yt-dlp](https://github.com/yt-dlp/yt-dlp) 是 youtube-dl 的一个分支：
 
 ```bash
 cd ~/git && git clone https://github.com/yt-dlp/yt-dlp.git &&
@@ -926,33 +916,37 @@ python3 -m bundle.pyinstaller --onefile --clean --noconfirm --name youtube-dl yt
 ln -sf ~/git/yt-dlp/dist/youtube-dl /opt/homebrew/bin/
 ```
 
-Use socks5 proxy for macOS to download:
+在 macOS 上使用 socks5 代理下载：
 
 ```bash
 youtube-dl --proxy socks5://127.0.0.1:10000 --output srs 'https://youtu.be/SqrazCPWcV0?si=axNvjynVb7Tf4Bfe'
 ```
 
-> Note: Setup the `--proxy socks5://127.0.0.1:10000` or `YTDL_PROXY=socks5://127.0.0.1:10000` if wants to
-> use proxy, use `ssh -D 127.0.0.1:10000 root@x.y.z.m dstat 30` to start the proxy server.
+> 注意：如果需要使用代理，请设置 `--proxy socks5://127.0.0.1:10000` 或 `YTDL_PROXY=socks5://127.0.0.1:10000`，使用 `ssh -D 127.0.0.1:10000 root@x.y.z.m dstat 30` 启动代理服务器。
 
-> Note: Setup the `--output TEMPLATE` when wants to define the filename.
+> 注意：如果需要定义文件名，请设置 `--output TEMPLATE`。
 
 ## Regenrate ASR for Dubbing
 
-Create a `regenerate.txt` under the project file, then restart Oryx and refresh the page:
+在项目文件下创建一个 `regenerate.txt` 文件，然后重启 Oryx 并刷新页面：
 
 ```bash
 touch ./platform/containers/data/dubbing/4830675a-7945-48fe-bed9-72e6fa904a19/regenerate.txt
 ```
 
-Oryx will regenerate the ASR and translation, then delete the `regenerate.txt` to make sure it executes one time.
+Oryx 会重新生成 ASR 和翻译，然后删除 `regenerate.txt` 以确保只执行一次。
 
-## WebRTC Candidate
+### 为什么要重新生成 ASR？
 
-Oryx follows the rules for WebRTC candidate, see [CANDIDATE](https://ossrs.io/lts/en-us/docs/v5/doc/webrtc#config-candidate),
-but also has extra improvements for we can do more after proxy the API.
+- 改进识别结果：如果之前的 ASR 识别结果不准确（例如语音识别错误或漏识别），可以通过重新生成 ASR 来改进。
+- 更新内容：如果音频内容发生了变化（例如重新录制或编辑），需要重新生成 ASR 以匹配最新的音频。
+- 支持多语言：如果需要为不同语言生成配音，重新生成 ASR 可以提供更准确的文本基础。
 
-1. Disable `use_auto_detect_network_ip` and `api_as_candidates` in SRS config.
+## WebRTC 候选地址（Candidate）
+
+Oryx 遵循 WebRTC 候选地址的规则，参见 [CANDIDATE](https://ossrs.io/lts/en-us/docs/v5/doc/webrtc#config-candidate)，但在代理 API 后还有一些额外的改进。
+
+1. 在 SRS 配置中禁用 `use_auto_detect_network_ip` 和 `api_as_candidates`。
 1. Always use `?eip=xxx` and ignore any other config, if user force to use the specified IP.
 1. If `NAME_LOOKUP` (default is `on`) isn't `off`, try to resolve the candidate from `Host` of HTTP API by Oryx.
   1. If access Oryx by `localhost` for debugging or run in localhost.
@@ -962,188 +956,188 @@ but also has extra improvements for we can do more after proxy the API.
   1. Use DNS lookup if `Host` is a domain, for example, to access Oryx by domain name.
 1. If no candidate, use docker IP address discovered by SRS. 
 
-> Note: Client can also set the header `X-Real-Host` to set the candidate.
+> 注意：客户端也可以通过设置 `X-Real-Host` 头来指定候选地址。
 
-> Note: Never use `host.docker.internal` because it's only available in docker, not in host server.
+> 注意：切勿使用 `host.docker.internal`，因为它仅在 docker 中可用，而不在主机服务器中可用。
 
-## Docker Allocated Ports
+## Docker 分配的端口
 
-The ports allocated:
+分配的端口如下：
 
-| Module | TCP Ports                                         | UDP Ports | Notes                                                                                                                                            |
-| ------ |---------------------------------------------------| --------- |--------------------------------------------------------------------------------------------------------------------------------------------------|
-| SRS | 1935, 1985, 8080,<br/> 8088, 1990, 554,<br/> 8936 | 8000, 8935, 10080,<br/> 1989 | See [SRS ports](https://github.com/ossrs/srs/blob/develop/trunk/doc/Resources.md#ports)                                                          |
-| platform | 2022                                              |  - | Mount at `/mgmt/`, `/terraform/v1/mgmt/`, `/terraform/v1/hooks/`, `/terraform/v1/ffmpeg/` and `/terraform/v1/tencent/` |
-| debugging | 22022 | - | Mount at `/terraform/v1/debug/goroutines` |
+| 模块 | TCP 端口                                         | UDP 端口 | 备注                                                                                                              |
+| ------ |---------------------------------------------------| --------- |-----------------------------------------------------------------------------------------------------------------|
+| SRS | 1935, 1985, 8080,<br/> 8088, 1990, 554,<br/> 8936 | 8000, 8935, 10080,<br/> 1989 | See [SRS ports](https://github.com/ossrs/srs/blob/develop/trunk/doc/Resources.md#ports)                         |
+| platform | 2022                                              |  - | 挂载在 `/mgmt/`, `/terraform/v1/mgmt/`, `/terraform/v1/hooks/`, `/terraform/v1/ffmpeg/` 和 `/terraform/v1/tencent/` |
+| debugging | 22022 | - | 挂载在 `/terraform/v1/debug/goroutines`                                                                       |
 
 > Note: FFmpeg(2019), TencentCloud(2020), Hooks(2021), Mgmt(2022), Platform(2024) has been migrated to platform(2024).
 
 ## HTTP OpenAPI
 
-API without any authentication:
+无需身份验证的 API：
 
-* `/terraform/v1/mgmt/versions` Public version api.
-* `/terraform/v1/mgmt/check` Check whether system is ok.
-* `/terraform/v1/mgmt/envs` Query the envs of mgmt.
-* `/terraform/v1/releases` Version management for all components.
-* `/terraform/v1/host/versions` Public version api.
-* `/terraform/v1/hooks/record/hls/:uuid.m3u8` Hooks: Generate HLS/m3u8 url to preview or download.
-* `/terraform/v1/hooks/record/hls/:uuid/index.m3u8` Hooks: Serve HLS m3u8 files.
-* `/terraform/v1/hooks/record/hls/:dir/:m3u8/:uuid.ts` Hooks: Serve HLS ts files.
-* `/terraform/v1/ai/transcript/hls/overlay/:uuid.m3u8` Generate the preview HLS for transcript stream with overlay text.
-* `/terraform/v1/ai/transcript/hls/webvtt/:uuid/index.m3u8` Generate the preview HLS for transcript stream with WebVTT text.
-  * `/terraform/v1/ai/transcript/hls/webvtt/:uuid/subtitles.m3u8` The HLS subtitles for the HLS.
-  * `/terraform/v1/ai/transcript/hls/webvtt/:uuid.m3u8` The HLS stream for the WebVTT.
-* `/terraform/v1/ai/transcript/hls/original/:uuid.m3u8` Generate the preview HLS for original stream without overlay text.
-* `/terraform/v1/ai/ocr/image/:uuid.jpg` Get the image for OCR task.
-* `/terraform/v1/mgmt/beian/query` Query the beian information.
-* `/terraform/v1/ai-talk/stage/hello-voices/:file.aac` AI-Talk: Play the example audios.
-* `/.well-known/acme-challenge/` HTTPS verify mount for letsencrypt.
-* For SRS proxy:
-  * `/rtc/` Proxy for SRS: HTTP API for WebRTC of SRS media server.
-  * `/*/*.(flv|m3u8|ts|aac|mp3)` Proxy for SRS: Media stream for HTTP-FLV, HLS, HTTP-TS, HTTP-AAC, HTTP-MP3.
-* For static files:
-  * `/tools/` A set of H5 tools, like simple player, xgplayer, etc, serve by mgmt.
-  * `/console/` The SRS console, serve by mgmt.
-  * `/players/` The SRS player, serve by mgmt.
-  * `/mgmt/` The ui for mgmt, serve by mgmt.
+* `/terraform/v1/mgmt/versions` 公开版本 API。
+* `/terraform/v1/mgmt/check`  检查系统是否正常。
+* `/terraform/v1/mgmt/envs` 查询 mgmt 的环境变量。
+* `/terraform/v1/releases` 所有组件的版本管理。
+* `/terraform/v1/host/versions` 公开版本 API。
+* `/terraform/v1/hooks/record/hls/:uuid.m3u8` Hooks：生成 HLS/m3u8 URL 以预览或下载。
+* `/terraform/v1/hooks/record/hls/:uuid/index.m3u8` Hooks：提供 HLS m3u8 文件。
+* `/terraform/v1/hooks/record/hls/:dir/:m3u8/:uuid.ts` Hooks：提供 HLS ts 文件。
+* `/terraform/v1/ai/transcript/hls/overlay/:uuid.m3u8` 生成带有覆盖文本的转录流的预览 HLS。
+* `/terraform/v1/ai/transcript/hls/webvtt/:uuid/index.m3u8` 生成带有 WebVTT 文本的转录流的预览 HLS。
+  * `/terraform/v1/ai/transcript/hls/webvtt/:uuid/subtitles.m3u8`  HLS 字幕的 HLS。
+  * `/terraform/v1/ai/transcript/hls/webvtt/:uuid.m3u8`  WebVTT 的 HLS 流。
+* `/terraform/v1/ai/transcript/hls/original/:uuid.m3u8` 生成不带覆盖文本的原始流的预览 HLS。
+* `/terraform/v1/ai/ocr/image/:uuid.jpg` 获取 OCR 任务的图像。
+* `/terraform/v1/mgmt/beian/query` 查询备案信息。
+* `/terraform/v1/ai-talk/stage/hello-voices/:file.aac` AI-Talk：播放示例音频。
+* `/.well-known/acme-challenge/` HTTPS 验证挂载（用于 letsencrypt）。
+* 对于 SRS 代理:
+  * `/rtc/` SRS 的代理：SRS 媒体服务器的 WebRTC HTTP API。
+  * `/*/*.(flv|m3u8|ts|aac|mp3)` SRS 的代理：HTTP-FLV、HLS、HTTP-TS、HTTP-AAC、HTTP-MP3 的媒体流。
+* 对于静态文件:
+  * `/tools/` 一组 H5 工具，如简单播放器、xgplayer 等，由 mgmt 提供。
+  * `/console/` SRS 控制台，由 mgmt 提供。
+  * `/players/` SRS 播放器，由 mgmt 提供。
+  * `/mgmt/` mgmt 的 UI，由 mgmt 提供。
 
-API without token authentication, but with password authentication:
+无需令牌验证但需要密码验证的 API：
 
-* `/terraform/v1/mgmt/init` Whether mgmt initialized. Login by password.
-* `/terraform/v1/mgmt/login` System auth with password.
+* `/terraform/v1/mgmt/init` 检查 mgmt 是否已初始化。通过密码登录。
+* `/terraform/v1/mgmt/login` 使用密码进行系统身份验证。
 
-Platform, with token authentication:
+平台(Platform)，需要令牌验证的 API：
 
-* `/terraform/v1/mgmt/token` System auth with token.
-* `/terraform/v1/mgmt/status` Query the version of mgmt.
-* `/terraform/v1/mgmt/bilibili` Query the video information.
-* `/terraform/v1/mgmt/beian/update` Update the beian information.
-* `/terraform/v1/mgmt/limits/query` Query the limits information.
-* `/terraform/v1/mgmt/limits/update` Update the limits information.
-* `/terraform/v1/mgmt/openai/query` Query the OpenAI settings.
-* `/terraform/v1/mgmt/openai/update` Update the OpenAI settings.
-* `/terraform/v1/mgmt/secret/query` Query the api secret for OpenAPI.
-* `/terraform/v1/mgmt/hphls/update` HLS delivery in high performance mode.
-* `/terraform/v1/mgmt/hphls/query` Query HLS delivery in high performance mode.
-* `/terraform/v1/mgmt/hlsll/update` Setup HLS low latency mode.
-* `/terraform/v1/mgmt/hlsll/query` Query state of HLS low latency mode.
-* `/terraform/v1/mgmt/ssl` Config the system SSL config.
-* `/terraform/v1/mgmt/auto-self-signed-certificate` Create the self-signed certificate if no cert.
-* `/terraform/v1/mgmt/letsencrypt` Config the let's encrypt SSL.
-* `/terraform/v1/mgmt/cert/query` Query the key and cert for HTTPS.
-* `/terraform/v1/mgmt/hooks/apply` Update the HTTP callback.
-* `/terraform/v1/mgmt/hooks/query` Query the HTTP callback.
-* `/terraform/v1/mgmt/hooks/example` Example target for HTTP callback.
-* `/terraform/v1/mgmt/streams/query` Query the active streams.
-* `/terraform/v1/mgmt/streams/kickoff` Kickoff the stream by name.
-* `/terraform/v1/hooks/srs/verify` Hooks: Verify the stream request URL of SRS.
-* `/terraform/v1/hooks/srs/secret/query` Hooks: Query the secret to generate stream URL.
-* `/terraform/v1/hooks/srs/secret/update` Hooks: Update the secret to generate stream URL.
-* `/terraform/v1/hooks/srs/secret/disable` Hooks: Disable the secret for authentication.
-* `/terraform/v1/hooks/srs/hls` Hooks: Handle the `on_hls` event.
-* `/terraform/v1/hooks/record/query` Hooks: Query the Record pattern.
-* `/terraform/v1/hooks/record/apply` Hooks: Apply the Record pattern.
-* `/terraform/v1/hooks/record/globs` Update the glob filters for record.
-* `/terraform/v1/hooks/record/post-processing` Update the post-processing for record.
-* `/terraform/v1/hooks/record/remove` Hooks: Remove the Record files.
-* `/terraform/v1/hooks/record/end` Record: As stream is unpublished, finish the record task quickly.
-* `/terraform/v1/hooks/record/files` Hooks: List the Record files.
-* `/terraform/v1/live/room/create` Live: Create a new live room.
-* `/terraform/v1/live/room/query` Live: Query a new live room.
-* `/terraform/v1/live/room/update` Live: Update a live room.
-* `/terraform/v1/live/room/remove`: Live: Remove a live room.
-* `/terraform/v1/live/room/list` Live: List all available live rooms.
-* `/terraform/v1/ai-talk/stage/start` AI-Talk: Start a new stage.
-* `/terraform/v1/ai-talk/stage/conversation` AI-Talk: Start a new conversation request of stage.
-* `/terraform/v1/ai-talk/stage/upload` AI-Talk: Upload a user input audio file.
-* `/terraform/v1/ai-talk/stage/query` AI-Talk: Query the response of input.
-* `/terraform/v1/ai-talk/stage/verify` AI-Talk: Verify the stage level token for popout.
-* `/terraform/v1/ai-talk/subscribe/start` AI-Talk: Start a popout with stage.
-* `/terraform/v1/ai-talk/subscribe/query` AI-Talk: Query the popout audio responses.
-* `/terraform/v1/ai-talk/subscribe/tts` AI-Talk: Play the TTS audios.
-* `/terraform/v1/ai-talk/subscribe/remove` AI-Talk: Remove the popout audio responses.
-* `/terraform/v1/ai-talk/user/query` AI-Talk: Query the user information.
-* `/terraform/v1/ai-talk/user/update` AI-Talk: Update the user information.
-* `/terraform/v1/dubbing/create` Dubbing: Create a dubbing project.
-* `/terraform/v1/dubbing/list` Dubbing: List all dubbing projects.
-* `/terraform/v1/dubbing/remove` Dubbing: Remove a dubbing project.
-* `/terraform/v1/dubbing/query` Dubbing: Query a dubbing project.
-* `/terraform/v1/dubbing/update` Dubbing: Update a dubbing project.
-* `/terraform/v1/dubbing/play` Dubbing: Play the dubbing audio or video.
-* `/terraform/v1/dubbing/export` Dubbing: Generate and download the dubbing audio artifact.
-* `/terraform/v1/dubbing/task-start` Dubbing: Start the work task for dubbing.
-* `/terraform/v1/dubbing/task-query` Dubbing: Query the work task for dubbing.
-* `/terraform/v1/dubbing/task-tts` Dubbing: Play the TTS audio for dubbing.
-* `/terraform/v1/dubbing/task-rephrase` Dubbing: Rephrase and regenerate TTS of the dubbing group.
-* `/terraform/v1/dubbing/task-merge`: Dubbing: Merge the dubbing group to previous or next group.
-* `/terraform/v1/ffmpeg/forward/secret` FFmpeg: Setup the forward secret to live streaming platforms.
-* `/terraform/v1/ffmpeg/forward/streams` FFmpeg: Query the forwarding streams.
-* `/terraform/v1/ffmpeg/vlive/secret` Setup the Virtual Live streaming secret.
-* `/terraform/v1/ffmpeg/vlive/streams` Query the Virtual Live streaming streams.
-* `/terraform/v1/ffmpeg/vlive/source` Setup Virtual Live source file.
-* `/terraform/v1/ffmpeg/vlive/upload/` Source: Upload Virtual Live or Dubbing source file.
-* `/terraform/v1/ffmpeg/vlive/server` Source: Use server file as Virtual Live or Dubbing source.
-* `/terraform/v1/ffmpeg/vlive/ytdl` Source: Download URL by [youtube-dl](https://github.com/ytdl-org/youtube-dl) as Virtual Live or Dubbing source.
-* `/terraform/v1/ffmpeg/vlive/stream-url` Source: Use stream URL as Virtual Live source.
-* `/terraform/v1/ffmpeg/camera/secret` Setup the IP camera streaming secret.
-* `/terraform/v1/ffmpeg/camera/streams` Query the IP camera streaming streams.
-* `/terraform/v1/ffmpeg/camera/source` Setup IP camera source file.
-* `/terraform/v1/ffmpeg/camera/stream-url` Source: Use stream URL as IP camera source.
-* `/terraform/v1/ffmpeg/transcode/query` Query transcode config.
-* `/terraform/v1/ffmpeg/transcode/apply` Apply transcode config.
-* `/terraform/v1/ffmpeg/transcode/task` Query transcode task.
-* `/terraform/v1/ai/transcript/apply` Update the settings of transcript.
-* `/terraform/v1/ai/transcript/query` Query the settings of transcript.
-* `/terraform/v1/ai/transcript/check` Check the OpenAI service of transcript.
-* `/terraform/v1/ai/transcript/clear-subtitle`: Clear the subtitle of segment in fixing queue.
-* `/terraform/v1/ai/transcript/live-queue` Query the live queue of transcript.
-* `/terraform/v1/ai/transcript/asr-queue` Query the asr queue of transcript.
-* `/terraform/v1/ai/transcript/fix-queue` Query the fix queue of transcript.
-* `/terraform/v1/ai/transcript/overlay-queue` Query the overlay queue of transcript.
-* `/terraform/v1/ai/ocr/apply` Update the settings of OCR.
-* `/terraform/v1/ai/ocr/query` Query the settings of OCR.
-* `/terraform/v1/ai/ocr/check` Check the OpenAI service of OCR.
-* `/terraform/v1/ai/ocr/live-queue` Query the live queue of OCR.
-* `/terraform/v1/ai/ocr/ocr-queue` Query the recognition queue of OCR.
-* `/terraform/v1/ai/ocr/callback-queue` Query the callback queue of OCR.
-* `/terraform/v1/ai/ocr/cleanup-queue` Query the cleanup queue of OCR.
+* `/terraform/v1/mgmt/token` 使用令牌进行系统身份验证。
+* `/terraform/v1/mgmt/status` 查询 mgmt 的版本。
+* `/terraform/v1/mgmt/bilibili` 查询视频信息。
+* `/terraform/v1/mgmt/beian/update` 更新备案信息。
+* `/terraform/v1/mgmt/limits/query` 查询限制信息。
+* `/terraform/v1/mgmt/limits/update` 更新限制信息。
+* `/terraform/v1/mgmt/openai/query` 查询 OpenAI 设置。
+* `/terraform/v1/mgmt/openai/update` 更新 OpenAI 设置。
+* `/terraform/v1/mgmt/secret/query` 查询 OpenAPI 的 API 密钥。
+* `/terraform/v1/mgmt/hphls/update` 高质量模式下 HLS 传递。
+* `/terraform/v1/mgmt/hphls/query` 查询搞质量模式下 HLS 传递。
+* `/terraform/v1/mgmt/hlsll/update` 设置 HLS 低延迟模式。
+* `/terraform/v1/mgmt/hlsll/query` 查询 HLS 低延迟模式的状态。
+* `/terraform/v1/mgmt/ssl` 配置系统的 SSL 配置。
+* `/terraform/v1/mgmt/auto-self-signed-certificate` 如果没有证书，创建自签名证书。
+* `/terraform/v1/mgmt/letsencrypt` 配置 Let's Encrypt SSL。
+* `/terraform/v1/mgmt/cert/query` 查询 HTTPS 的密钥和证书。
+* `/terraform/v1/mgmt/hooks/apply` 更新 HTTP 回调。
+* `/terraform/v1/mgmt/hooks/query` 查询 HTTP 回调。
+* `/terraform/v1/mgmt/hooks/example` HTTP 回调的示例目标。
+* `/terraform/v1/mgmt/streams/query` 查询活跃的流。
+* `/terraform/v1/mgmt/streams/kickoff` 按名称踢出流。
+* `/terraform/v1/hooks/srs/verify` Hooks：验证 SRS 的流请求 URL。
+* `/terraform/v1/hooks/srs/secret/query` Hooks：查询生成流 URL 的密钥。
+* `/terraform/v1/hooks/srs/secret/update` Hooks：更新生成流 URL 的密钥。
+* `/terraform/v1/hooks/srs/secret/disable` Hooks：禁用用于身份验证的密钥。
+* `/terraform/v1/hooks/srs/hls` Hooks：处理 `on_hls` 事件。
+* `/terraform/v1/hooks/record/query` Hooks：查询录制模式。
+* `/terraform/v1/hooks/record/apply` Hooks：应用录制模式。
+* `/terraform/v1/hooks/record/globs` 更新录制的全局过滤器。
+* `/terraform/v1/hooks/record/post-processing` 更新录制的后处理。
+* `/terraform/v1/hooks/record/remove` Hooks: 删除录制文件。
+* `/terraform/v1/hooks/record/end` 录制：当流未发布时，快速完成录制任务。
+* `/terraform/v1/hooks/record/files` Hooks：列出录制文件。
+* `/terraform/v1/live/room/create` 直播：创建一个新的直播间。
+* `/terraform/v1/live/room/query` 直播：查询一个直播间。
+* `/terraform/v1/live/room/update` 直播：更新一个直播间。
+* `/terraform/v1/live/room/remove`: 直播：删除一个直播间。
+* `/terraform/v1/live/room/list` 直播：列出所有可用的直播间。
+* `/terraform/v1/ai-talk/stage/start` AI-Talk: 开始一个新的舞台。
+* `/terraform/v1/ai-talk/stage/conversation` AI-Talk: 开始舞台的新对话请求。
+* `/terraform/v1/ai-talk/stage/upload` AI-Talk: 上传用户输入的音频文件。
+* `/terraform/v1/ai-talk/stage/query` AI-Talk: 查询输入的响应。
+* `/terraform/v1/ai-talk/stage/verify` AI-Talk: 验证舞台级别的弹出令牌。
+* `/terraform/v1/ai-talk/subscribe/start` AI-Talk: 开始一个带舞台的弹出窗口。
+* `/terraform/v1/ai-talk/subscribe/query` AI-Talk: 查询弹出音频响应。
+* `/terraform/v1/ai-talk/subscribe/tts` AI-Talk: 播放 TTS 音频。
+* `/terraform/v1/ai-talk/subscribe/remove` AI-Talk: 删除弹出音频响应。
+* `/terraform/v1/ai-talk/user/query` AI-Talk: 查询用户信息。
+* `/terraform/v1/ai-talk/user/update` AI-Talk: 更新用户信息。
+* `/terraform/v1/dubbing/create` Dubbing: 创建一个配音项目。
+* `/terraform/v1/dubbing/list` Dubbing: 列出所有配音项目。
+* `/terraform/v1/dubbing/remove` Dubbing: 删除一个配音项目。
+* `/terraform/v1/dubbing/query` Dubbing: 查询一个配音项目。
+* `/terraform/v1/dubbing/update` Dubbing: 更新一个配音项目。
+* `/terraform/v1/dubbing/play` Dubbing: 播放配音音频或视频。
+* `/terraform/v1/dubbing/export` Dubbing: 生成并下载配音音频文件。
+* `/terraform/v1/dubbing/task-start` Dubbing: 启动配音的工作任务。
+* `/terraform/v1/dubbing/task-query` Dubbing: 查询配音的工作任务。
+* `/terraform/v1/dubbing/task-tts` Dubbing: 播放配音的 TTS 音频。
+* `/terraform/v1/dubbing/task-rephrase` Dubbing: 重新生成配音组的 TTS。
+* `/terraform/v1/dubbing/task-merge`: Dubbing: 将配音组合并到前一个或下一个组。
+* `/terraform/v1/ffmpeg/forward/secret` FFmpeg: 设置直播平台的转发密钥。
+* `/terraform/v1/ffmpeg/forward/streams` FFmpeg: 查询转发流。
+* `/terraform/v1/ffmpeg/vlive/secret` 设置虚拟直播流的密钥。
+* `/terraform/v1/ffmpeg/vlive/streams` 查询虚拟直播流。
+* `/terraform/v1/ffmpeg/vlive/source` 设置虚拟直播源文件。
+* `/terraform/v1/ffmpeg/vlive/upload/` Source: 上传虚拟直播或配音源文件。
+* `/terraform/v1/ffmpeg/vlive/server` Source: 使用服务器文件作为虚拟直播或配音源。
+* `/terraform/v1/ffmpeg/vlive/ytdl` Source: 使用 [youtube-dl](https://github.com/ytdl-org/youtube-dl) 下载 URL 作为虚拟直播或配音源。
+* `/terraform/v1/ffmpeg/vlive/stream-url` Source: 使用流 URL 作为虚拟直播源。
+* `/terraform/v1/ffmpeg/camera/secret` 设置 IP 摄像头流的密钥。
+* `/terraform/v1/ffmpeg/camera/streams` 查询 IP 摄像头流。
+* `/terraform/v1/ffmpeg/camera/source` 设置 IP 摄像头源文件。
+* `/terraform/v1/ffmpeg/camera/stream-url` Source: 使用流 URL 作为 IP 摄像头源。
+* `/terraform/v1/ffmpeg/transcode/query`  查询转码配置。
+* `/terraform/v1/ffmpeg/transcode/apply`  应用转码配置。
+* `/terraform/v1/ffmpeg/transcode/task` 查询转码任务。
+* `/terraform/v1/ai/transcript/apply` 更新转录设置。
+* `/terraform/v1/ai/transcript/query`  查询转录设置。
+* `/terraform/v1/ai/transcript/check` 检查转录的 OpenAI 服务。
+* `/terraform/v1/ai/transcript/clear-subtitle`:  清除修复队列中的段字幕。
+* `/terraform/v1/ai/transcript/live-queue` 查询转录的实时队列。
+* `/terraform/v1/ai/transcript/asr-queue` 查询转录的 ASR 队列。
+* `/terraform/v1/ai/transcript/fix-queue`  查询转录的修复队列。
+* `/terraform/v1/ai/transcript/overlay-queue` 查询转录的覆盖队列。
+* `/terraform/v1/ai/ocr/apply`  更新 OCR 设置。
+* `/terraform/v1/ai/ocr/query` 查询 OCR 设置。
+* `/terraform/v1/ai/ocr/check` 检查 OCR 的 OpenAI 服务。
+* `/terraform/v1/ai/ocr/live-queue`  查询 OCR 的实时队列。
+* `/terraform/v1/ai/ocr/ocr-queue` 查询 OCR 的识别队列。
+* `/terraform/v1/ai/ocr/callback-queue` 查询 OCR 的回调队列。
+* `/terraform/v1/ai/ocr/cleanup-queue` 查询 OCR 的清理队列。
 
-Also provided by platform for SRS proxy:
+平台为 SRS 代理提供的 API：
 
-* `/api/` SRS: HTTP API of SRS media server. With token authentication.
+* `/api/` SRS: SRS 媒体服务器的 HTTP API。需要令牌验证。
 
-**Deprecated** API:
+**Deprecated(弃用)** API:
 
-* `/terraform/v1/tencent/cam/secret` Tencent: Setup the CAM SecretId and SecretKey.
-* `/terraform/v1/hooks/dvr/apply` Hooks: Apply the DVR pattern.
-* `/terraform/v1/hooks/dvr/query` Hooks: Query the DVR pattern.
-* `/terraform/v1/hooks/dvr/files` Hooks: List the DVR files.
-* `/terraform/v1/hooks/dvr/hls/:uuid.m3u8` Hooks: Generate HLS/m3u8 url to preview or download.
-* `/terraform/v1/hooks/vod/query` Hooks: Query the VoD pattern.
-* `/terraform/v1/hooks/vod/apply` Hooks: Apply the VoD pattern.
-* `/terraform/v1/hooks/vod/files` Hooks: List the VoD files.
-* `/terraform/v1/hooks/vod/hls/:uuid.m3u8` Hooks: Generate HLS/m3u8 url to preview or download.
+* `/terraform/v1/tencent/cam/secret` 腾讯：设置 CAM SecretId 和 SecretKey。
+* `/terraform/v1/hooks/dvr/apply` Hooks: 应用 DVR 模式。
+* `/terraform/v1/hooks/dvr/query` Hooks: 查询 DVR 模式。
+* `/terraform/v1/hooks/dvr/files` Hooks: 列出 DVR 文件。
+* `/terraform/v1/hooks/dvr/hls/:uuid.m3u8` Hooks: 生成 HLS/m3u8 URL 以预览或下载。
+* `/terraform/v1/hooks/vod/query` Hooks: 查询 VoD 模式。
+* `/terraform/v1/hooks/vod/apply` Hooks: 应用 VoD 模式。
+* `/terraform/v1/hooks/vod/files` Hooks: 列出 VoD 文件。
+* `/terraform/v1/hooks/vod/hls/:uuid.m3u8` Hooks: 生成 HLS/m3u8 URL 以预览或下载。
 
-**Removed** API:
+**Removed(移除)** API:
 
-* `/terraform/v1/mgmt/strategy` Toggle the upgrade strategy.
-* `/prometheus` Prometheus: Time-series database and monitor.
-* `/terraform/v1/mgmt/nginx/proxy` Setup a reverse proxy location.
-* `/terraform/v1/mgmt/dns/lb` HTTP-DNS for hls load balance.
-* `/terraform/v1/mgmt/dns/backend/update` HTTP-DNS: Update the backend servers for hls load balance.
-* `/terraform/v1/mgmt/nginx/homepage` Setup the homepage redirection.
-* `/terraform/v1/mgmt/window/query` Query the upgrade time window.
-* `/terraform/v1/mgmt/window/update` Update the upgrade time window.
-* `/terraform/v1/mgmt/pubkey` Update the access for platform administrator pubkey.
-* `/terraform/v1/mgmt/upgrade` Upgrade the mgmt to latest version.
-* `/terraform/v1/mgmt/containers` Query SRS container.
-* `/terraform/v1/host/exec` Exec command sync, response the stdout and stderr.
-* `/terraform/v1/mgmt/secret/token` Create token for OpenAPI.
+* `/terraform/v1/mgmt/strategy` 切换升级策略。
+* `/prometheus` Prometheus: 时间序列数据库和监控。
+* `/terraform/v1/mgmt/nginx/proxy` 设置反向代理位置。
+* `/terraform/v1/mgmt/dns/lb` HTTP-DNS 用于 HLS 负载均衡。
+* `/terraform/v1/mgmt/dns/backend/update` HTTP-DNS：更新 HLS 负载均衡的后端服务器。
+* `/terraform/v1/mgmt/nginx/homepage` 设置首页重定向。
+* `/terraform/v1/mgmt/window/query` 查询升级时间窗口。
+* `/terraform/v1/mgmt/window/update` 更新升级时间窗口。
+* `/terraform/v1/mgmt/pubkey` 更新平台管理员公钥的访问权限。
+* `/terraform/v1/mgmt/upgrade` 将 mgmt 升级到最新版本。
+* `/terraform/v1/mgmt/containers` 查询 SRS 容器。
+* `/terraform/v1/host/exec` 同步执行命令，返回 stdout 和 stderr。
+* `/terraform/v1/mgmt/secret/token` 为 OpenAPI 创建令牌。
 
-## Depends Softwares
+## 依赖的软件
 
-The software we depend on:
+我们依赖的软件包括：
 
 * Docker, `apt-get install -y docker.io`
 * Nginx, `apt-get install -y nginx`
@@ -1163,83 +1157,83 @@ The software we depend on:
 * FFmpeg:
     * [FFmpeg and ffprobe](https://ffmpeg.org) tools in `ossrs/srs:ubuntu20`
 
-## Environment Variables
+## 环境变量
 
-The optional environments defined by `platform/containers/data/config/.env`:
+由 `platform/containers/data/config/.env` 定义的可选环境变量：
 
-* `MGMT_PASSWORD`: The mgmt administrator password.
-* `REACT_APP_LOCALE`: The i18n config for ui, `en` or `zh`, default to `en`.
+* `MGMT_PASSWORD`: mgmt 管理员密码。
+* `REACT_APP_LOCALE`: UI 的国际化配置，`en` 或 `zh`，默认为 `en`。
 
-Other environments defined by `platform/containers/data/config/.env`:
+由 `platform/containers/data/config/.env` 定义的其他环境变量：
 
-* `CLOUD`: `dev|bt|aapanel|droplet|docker`, The cloud platform name, DEV for development.
-* `REGION`: `ap-guangzhou|ap-singapore|sgp1`, The region for upgrade source.
-* `REGISTRY`: `docker.io|registry.cn-hangzhou.aliyuncs.com`, The docker registry.
-* `MGMT_LISTEN`: The listen port for mgmt HTTP server. Default: `2022`
-* `PLATFORM_LISTEN`: The listen port for platform HTTP server. Default: `2024`
-* `HTTPS_LISTEN`: The listen port for HTTPS server. Default: `2443`
+* `CLOUD`: `dev|bt|aapanel|droplet|docker`, 云平台名称，`DEV` 表示开发环境。
+* `REGION`: `ap-guangzhou|ap-singapore|sgp1`, 升级源的区域。
+* `REGISTRY`: `docker.io|registry.cn-hangzhou.aliyuncs.com`, Docker 镜像仓库。
+* `MGMT_LISTEN`: mgmt HTTP 服务器的监听端口。默认：`2022`
+* `PLATFORM_LISTEN`: 平台 HTTP 服务器的监听端口。默认：`2024`
+* `HTTPS_LISTEN`: HTTPS 服务器的监听端口。默认：`2443`
 
-For multiple ports running in multiple containers in one host server:
+对于在同一主机服务器上运行多个容器的多端口配置：
 
-* `HTTP_PORT`: The listen port for HTTP server. Default to port to access dashboard.
-* `RTMP_PORT`: The listen port for RTMP server. Default: `1935`
-* `SRT_PORT`: The listen UDP port for SRT server. Default: `10080`
-* `RTC_PORT`: The listen UDP port for RTC server. Default: `8000`
+* `HTTP_PORT`: HTTP 服务器的监听端口。默认用于访问仪表板的端口。
+* `RTMP_PORT`: RTMP 服务器的监听端口。默认：`1935`
+* `SRT_PORT`: SRT 服务器的 UDP 监听端口。默认：`10080`
+* `RTC_PORT`: RTC 服务器的 UDP 监听端口。默认：`8000`
 
-For limit that you can control:
+用于限制的可配置项：
 
-* `SRS_FORWARD_LIMIT`: The limit for SRS forward. Default: `10`.
-* `SRS_VLIVE_LIMIT`: The limit for SRS virtual live. Default: `10`.
+* `SRS_FORWARD_LIMIT`: SRS 转发的限制。默认：`10`。
+* `SRS_VLIVE_LIMIT`: SRS 虚拟直播的限制。默认：`10`。
 
-For feature control:
+用于功能控制的配置：
 
-* `NAME_LOOKUP`: `on|off`, whether enable the host name lookup, on or off. Default: `on`
+* `NAME_LOOKUP`: `on|off`, 是否启用主机名解析。默认：`on`
 
-For testing the specified service:
+用于测试指定服务的配置：
 
-* `NODE_ENV`: `development|production`, if development, use local redis; otherwise, use `mgmt.srs.local` in docker. Default: 'development'
-* `LOCAL_RELEASE`: `on|off`, whether use local release service. Default: `off`
-* `PLATFORM_DOCKER`: `on|off`, whether run platform in docker. Default: `off`
+* `NODE_ENV`: `development|production`，如果为 development，则使用本地 redis；否则，使用 docker 中的 `mgmt.srs.local`。默认：`development`
+* `LOCAL_RELEASE`: `on|off`，是否使用本地发布服务。默认：`off`
+* `PLATFORM_DOCKER`: `on|off`，是否在 docker 中运行平台。默认：`off`
 
-For mgmt and containers to connect to redis:
+用于 mgmt 和容器连接 redis 的配置：
 
-* `REDIS_PASSWORD`: The redis password. Default: empty.
-* `REDIS_PORT`: The redis port. Default: `6379`.
+* `REDIS_PASSWORD`: redis 密码。默认：空。
+* `REDIS_PORT`: redis 端口。默认：`6379`。
 
-Environments for react ui:
+用于 React UI 的环境变量：
 
-* `PUBLIC_URL`: The mount prefix.
-* `BUILD_PATH`: The output build path, default to `build`.
+* `PUBLIC_URL`: 挂载前缀。
+* `BUILD_PATH`: 输出构建路径，默认：`build`。
 
-> Note: The env for react must start with `REACT_APP_`, please read [this post](https://create-react-app.dev/docs/adding-custom-environment-variables/#referencing-environment-variables-in-the-html).
+> 注意：React 的环境变量必须以 `REACT_APP_` 开头，请阅读 [这篇文章](https://create-react-app.dev/docs/adding-custom-environment-variables/#referencing-environment-variables-in-the-html)。
 
-Removed variables in .env:
+已从 .env 中移除的变量：
 
-* `SRS_PLATFORM_SECRET`: The mgmt api secret for token generating and verifying.
+* `SRS_PLATFORM_SECRET`: 用于生成和验证令牌的 mgmt API 密钥。
 
-For HTTPS, automatically generate a self-signed certificate:
+用于 HTTPS，自动生成自签名证书的配置：
 
-* `AUTO_SELF_SIGNED_CERTIFICATE`: `on|off`, whether generate self-signed certificate. Default: `on`.
+* `AUTO_SELF_SIGNED_CERTIFICATE`: `on|off`，是否生成自签名证书。默认：`on`。
 
-Deprecated and unused variables:
+已弃用且未使用的变量：
 
-* `SRS_DOCKERIZED`: `on|off`, indicates the OS is in docker.
-* `SRS_DOCKER`: `srs` to enfore use `ossrs/srs` docker image.
-* `MGMT_DOCKER`: `on|off`, whether run mgmt in docker. Default: false
-* `USE_DOCKER`: `on|off`, if false, disable all docker containers.
-* `SRS_UTEST`: `on|off`, if on, running in utest mode.
-* `SOURCE`: `github|gitee`, The source code for upgrading.
+* `SRS_DOCKERIZED`: `on|off`, 表示操作系统是否在 docker 中。
+* `SRS_DOCKER`: `srs`  强制使用 `ossrs/srs` docker 镜像。
+* `MGMT_DOCKER`: `on|off`, 是否在 docker 中运行 mgmt。默认：false
+* `USE_DOCKER`: `on|off`, 如果为 false，则禁用所有 docker 容器。
+* `SRS_UTEST`: `on|off`, 如果为 on，则在单元测试模式下运行。
+* `SOURCE`: `github|gitee`, 升级的源代码来源。
 
-Other variables:
+其他变量：
 
-* `YTDL_PROXY`: Setup the proxy for youtube-dl, for example, `socks5://127.0.0.1:10000`
-* `GO_PPROF`: Setup the listen addr for Go PPROF tool, for example, `localhost:6060`
+* `YTDL_PROXY`: 为 youtube-dl 设置代理，例如：`socks5://127.0.0.1:10000`
+* `GO_PPROF`: 为 Go PPROF 工具设置监听地址，例如：`localhost:6060`
 
-Please restart service when `.env` changed.
+当 `.env` 文件更改时，请重启服务。
 
-## Coding Guide
+## 编码指南
 
-For the json field with more than 2 words:
+对于包含两个以上单词的 JSON 字段：
 
 ```go
 type CameraConfigure struct {
@@ -1247,7 +1241,7 @@ type CameraConfigure struct {
 }
 ```
 
-Or use the format:
+或者使用以下格式：
 
 ```go
 type CameraConfigure struct {
@@ -1255,7 +1249,7 @@ type CameraConfigure struct {
 }
 ```
 
-Generally we follow this guide except for some legacy code.
+通常情况下，我们遵循此指南，但一些遗留代码可能例外。
 
 ## Changelog
 

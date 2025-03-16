@@ -31,8 +31,8 @@ github.com/mozillazg/go-httpheader v0.2.1/go.mod h1:jJ8xECTlalr6ValeXYdOF8fFUISe
 github.com/nxadm/tail v1.4.8 h1:nPr65rt6Y5JFSKQO7qToXr7pePgD6Gwiw05lkbyAQTE=
 github.com/onsi/ginkgo v1.16.5 h1:8xi0RTUf59SOSfEtZMvwTvXYMzG4gV23XVHOZiXNtnE=
 github.com/onsi/gomega v1.18.1 h1:M1GfJqGRrBrrGGsbxzV5dqM2U2ApXefZCQpkukxYRLE=
-github.com/ossrs/go-oryx-lib v0.0.9 h1:piZkzit/1hqAcXP31/mvDEDpHVjCmBMmvzF3hN8hUuQ=
-github.com/ossrs/go-oryx-lib v0.0.9/go.mod h1:i2tH4TZBzAw5h+HwGrNOKvP/nmZgSQz0OEnLLdzcT/8=
+github.com/ossrs/go-oryx-lib v0.0.10 h1:tyhe21d7UdMstxi0QGJACs2prIxWOw3eSEC8+cZHbQk=
+github.com/ossrs/go-oryx-lib v0.0.10/go.mod h1:nDTZDIADYNsuwnFflruKfB5ibQvQxPO2TQIFHJZsnvQ=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/sashabaranov/go-openai v1.24.0 h1:4H4Pg8Bl2RH/YSnU8DYumZbuHnnkfioor/dtNlB20D4=
 github.com/sashabaranov/go-openai v1.24.0/go.mod h1:lj5b/K+zjTSFxVLijLSTDZuP7adOgerWeFyZLUhAKRg=

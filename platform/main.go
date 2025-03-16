@@ -293,6 +293,7 @@ func doMain(ctx context.Context) error {
 func initMgmtOS(ctx context.Context) (err error) {
 	// For Darwin, append the search PATH for docker.
 	// Note that we should set the PATH env, not the exec.Cmd.Env.
+	// 在 macOS（Darwin）系统中，确保 Docker 可执行文件路径 /usr/local/bin 被添加到 PATH 环境变量中。这解决了 macOS 下 Docker 命令可能无法直接调用的问题。
 	if conf.IsDarwin && !strings.Contains(envPath(), "/usr/local/bin") {
 		os.Setenv("PATH", fmt.Sprintf("%v:/usr/local/bin", envPath()))
 	}

@@ -44,8 +44,8 @@ github.com/mitchellh/mapstructure
 # github.com/mozillazg/go-httpheader v0.2.1
 ## explicit
 github.com/mozillazg/go-httpheader
-# github.com/ossrs/go-oryx-lib v0.0.9
-## explicit
+# github.com/ossrs/go-oryx-lib v0.0.10
+## explicit; go 1.4.0
 github.com/ossrs/go-oryx-lib/errors
 github.com/ossrs/go-oryx-lib/http
 github.com/ossrs/go-oryx-lib/logger
