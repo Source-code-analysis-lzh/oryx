@@ -46,13 +46,18 @@ type OCRWorker struct {
 	tsfiles chan *SrsOnHlsObject
 }
 
+// NewOCRWorker 创建并返回一个新的 OCRWorker 实例。
+// 该函数会初始化 OCRWorker 的内部通道及其关联的 OCRTask。
 func NewOCRWorker() *OCRWorker {
+	// 初始化 OCRWorker，包含两个缓冲通道：
+	// msgs 用于处理 on_hls 消息，缓冲大小为 1024。
 	v := &OCRWorker{
 		// Message on_hls.
 		msgs: make(chan *SrsOnHlsMessage, 1024),
 		// TS files.
 		tsfiles: make(chan *SrsOnHlsObject, 1024),
 	}
+	// 创建一个新的 OCRTask，并将其与当前 OCRWorker 关联。
 	v.task = NewOCRTask()
 	v.task.ocrWorker = v
 	return v
@@ -608,20 +613,31 @@ func (v *OCRWorker) Close() error {
 	return nil
 }
 
+// Start 启动 OCRWorker，初始化并运行多个 goroutine 来处理 OCR 任务。
+// 参数:
+//   - ctx: 上下文对象，用于控制生命周期和取消操作。
+//
+// 返回值:
+//   - error: 如果启动过程中发生错误，则返回错误信息；否则返回 nil。
 func (v *OCRWorker) Start(ctx context.Context) error {
+	// 初始化 WaitGroup，用于同步 goroutine。
 	wg := &v.wg
 
+	// 创建一个可取消的上下文，以便在需要时终止所有 goroutine。
 	ctx, cancel := context.WithCancel(ctx)
 	v.cancel = cancel
 
+	// 将上下文与日志系统绑定，并记录启动信息。
 	ctx = logger.WithContext(ctx)
 	logger.Tf(ctx, "ocr start a worker")
 
 	// Load task from redis and continue to run the task.
+	// 从 Redis 加载任务并继续运行任务。
 	if objs, err := rdb.HGetAll(ctx, SRS_OCR_TASK).Result(); err != nil && err != redis.Nil {
 		return errors.Wrapf(err, "hgetall %v", SRS_OCR_TASK)
 	} else if len(objs) != 1 {
 		// Only support one task right now.
+		// 当前仅支持单个任务，如果任务数量不为 1，则删除 Redis 中的任务。
 		if err = rdb.Del(ctx, SRS_OCR_TASK).Err(); err != nil && err != redis.Nil {
 			return errors.Wrapf(err, "del %v", SRS_OCR_TASK)
 		}
@@ -629,6 +645,7 @@ func (v *OCRWorker) Start(ctx context.Context) error {
 		for uuid, obj := range objs {
 			logger.Tf(ctx, "Load task %v object %v", uuid, obj)
 
+			// 将 Redis 中存储的任务反序列化到 v.task。
 			if err = json.Unmarshal([]byte(obj), v.task); err != nil {
 				return errors.Wrapf(err, "unmarshal %v %v", uuid, obj)
 			}
@@ -638,6 +655,7 @@ func (v *OCRWorker) Start(ctx context.Context) error {
 	}
 
 	// Start global ocr task.
+	// 启动全局 OCR 任务处理 goroutine。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -660,6 +678,7 @@ func (v *OCRWorker) Start(ctx context.Context) error {
 	}()
 
 	// Consume all on_hls messages.
+	// 启动消费 on_hls 消息的 goroutine。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -676,6 +695,7 @@ func (v *OCRWorker) Start(ctx context.Context) error {
 	}()
 
 	// Consume all ts files by task.
+	// 启动消费 TS 文件的 goroutine。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -693,6 +713,7 @@ func (v *OCRWorker) Start(ctx context.Context) error {
 	}()
 
 	// Watch for new stream.
+	// 启动监听新流的 goroutine。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -715,6 +736,7 @@ func (v *OCRWorker) Start(ctx context.Context) error {
 	}()
 
 	// Drive the live queue to OCR.
+	// 启动驱动直播队列到 OCR 队列的 goroutine。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -737,6 +759,7 @@ func (v *OCRWorker) Start(ctx context.Context) error {
 	}()
 
 	// Drive the OCR queue to correct queue.
+	// 启动驱动 OCR 队列到回调队列的 goroutine。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -759,6 +782,7 @@ func (v *OCRWorker) Start(ctx context.Context) error {
 	}()
 
 	// Drive the callback queue, notify user's service.
+	// 启动驱动回调队列，通知用户服务的 goroutine。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -781,6 +805,7 @@ func (v *OCRWorker) Start(ctx context.Context) error {
 	}()
 
 	// Drive the cleanup queue, remove old files.
+	// 启动驱动清理队列，移除旧文件的 goroutine。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

@@ -18,6 +18,9 @@ type CrontabWorker struct {
 	wg sync.WaitGroup
 }
 
+// NewCrontabWorker 创建并返回一个新的CrontabWorker实例。
+// 该函数不需要任何参数。
+// 返回值是一个指向CrontabWorker的指针，表示新创建的CrontabWorker实例。
 func NewCrontabWorker() *CrontabWorker {
 	return &CrontabWorker{}
 }
@@ -27,7 +30,13 @@ func (v *CrontabWorker) Close() error {
 	return nil
 }
 
+// Start 方法用于启动 CrontabWorker 的后台任务。这些任务包括定期刷新缓存、查询最新版本、刷新 SSL 证书以及重新加载证书文件。
+// 参数：
+// - ctx: context.Context 类型，用于控制任务的生命周期和取消操作。
+// 返回值：
+// - error: 如果证书管理器初始化失败，则返回错误；否则返回 nil。
 func (v *CrontabWorker) Start(ctx context.Context) error {
+	// 启动第一个 Goroutine，负责定期刷新快速缓存（fastCache）。
 	v.wg.Add(1)
 	go func() {
 		defer v.wg.Done()
@@ -45,6 +54,7 @@ func (v *CrontabWorker) Start(ctx context.Context) error {
 		}
 	}()
 
+	// 启动第二个 Goroutine，负责在系统启动后的一段时间内开始查询最新版本。
 	v.wg.Add(1)
 	go func() {
 		defer v.wg.Done()
@@ -73,6 +83,7 @@ func (v *CrontabWorker) Start(ctx context.Context) error {
 		}
 	}()
 
+	// 启动第三个 Goroutine，负责定期刷新 SSL 证书。
 	v.wg.Add(1)
 	go func() {
 		defer v.wg.Done()
@@ -91,10 +102,12 @@ func (v *CrontabWorker) Start(ctx context.Context) error {
 		}
 	}()
 
+	// 初始化证书管理器，如果失败则直接返回错误。
 	if err := certManager.Initialize(ctx); err != nil {
 		return errors.Wrapf(err, "initialize cert manager")
 	}
 
+	// 启动第四个 Goroutine，负责定期重新加载证书文件。
 	v.wg.Add(1)
 	go func() {
 		defer v.wg.Done()
@@ -108,8 +121,8 @@ func (v *CrontabWorker) Start(ctx context.Context) error {
 			select {
 			case <-ctx.Done():
 				return
-			case <-certManager.httpCertificateReload:
-			case <-time.After(time.Duration(1*3600) * time.Second):
+			case <-certManager.httpCertificateReload: // 监听证书重新加载信号。
+			case <-time.After(time.Duration(1*3600) * time.Second): // 每隔 1 小时重新加载一次证书文件。
 			}
 		}
 	}()

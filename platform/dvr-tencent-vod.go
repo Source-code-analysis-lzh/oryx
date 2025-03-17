@@ -48,7 +48,14 @@ type VodWorker struct {
 	streams sync.Map
 }
 
+// NewVodWorker 创建一个新的 VodWorker 实例。
+// VodWorker 是一个用于处理 HLS（HTTP Live Streaming）对象的工作者进程。
+// 返回值:
+//
+//	*VodWorker: 新创建的 VodWorker 实例。
 func NewVodWorker() *VodWorker {
+	// 创建一个带有缓冲区的 channel，用于接收 SrsOnHlsObject 类型的消息。
+	// 缓冲区大小为 1024，这意味着它可以存储 1024 个消息而不会阻塞。
 	return &VodWorker{
 		msgs: make(chan *SrsOnHlsObject, 1024),
 	}
@@ -371,21 +378,29 @@ func (v *VodWorker) Close() error {
 	return nil
 }
 
+// Start 方法用于启动 VodWorker，初始化相关资源并开始处理 HLS 流的 TS 分片消息。
+// ctx: 上下文参数，用于控制协程生命周期和日志记录。
+// 返回值: 如果启动过程中发生错误，则返回 error；否则返回 nil。
 func (v *VodWorker) Start(ctx context.Context) error {
+	// 使用内部 WaitGroup 管理协程生命周期。
 	wg := &v.wg
 
+	// 创建可取消的上下文，以便更好地控制协程。
 	ctx, cancel := context.WithCancel(ctx)
 	v.cancel = cancel
 
+	// 将当前上下文添加到日志器中，以实现一致的日志记录。
 	ctx = logger.WithContext(ctx)
 	logger.Tf(ctx, "Vod: start a worker")
 
 	// When system startup, we initialize the credentials, for worker to use it.
+	// 系统启动时初始化腾讯云凭证，供 Worker 使用。
 	if err := v.updateCredential(ctx); err != nil {
 		return errors.Wrapf(err, "update credential")
 	}
 
 	// Load all objects from redis.
+	// 从 Redis 加载所有对象。
 	if objs, err := rdb.HGetAll(ctx, SRS_VOD_M3U8_WORKING).Result(); err != nil && err != redis.Nil {
 		return errors.Wrapf(err, "hgetall %v", SRS_VOD_M3U8_WORKING)
 	} else if len(objs) > 0 {
@@ -397,12 +412,12 @@ func (v *VodWorker) Start(ctx context.Context) error {
 				return errors.Wrapf(err, "load %v", value)
 			}
 
-			// Initialize object.
+			// Initialize object. // 初始化对象。
 			if err := m3u8LocalObj.Initialize(ctx, v); err != nil {
 				return errors.Wrapf(err, "init %v", m3u8LocalObj.String())
 			}
 
-			// Save in memory object.
+			// Save in memory object.// 将对象保存到内存中。
 			v.streams.Store(m3u8URL, &m3u8LocalObj)
 
 			wg.Add(1)
@@ -416,10 +431,12 @@ func (v *VodWorker) Start(ctx context.Context) error {
 	}
 
 	// Create M3u8 object from message.
+	// 根据消息创建 M3u8 对象。
 	buildM3u8Object := func(ctx context.Context, msg *SrsOnHlsObject) error {
 		logger.Tf(ctx, "Vod: Got message %v", msg.String())
 
 		// Load stream local object.
+		// 加载流本地对象。
 		var m3u8LocalObj *VodM3u8Stream
 		var freshObject bool
 		if obj, loaded := v.streams.LoadOrStore(msg.Msg.M3u8URL, &VodM3u8Stream{
@@ -429,6 +446,7 @@ func (v *VodWorker) Start(ctx context.Context) error {
 		}
 
 		// Serve object if fresh one.
+		// 如果是新对象，则启动服务。
 		if freshObject {
 			// Initialize object.
 			if err := m3u8LocalObj.Initialize(ctx, v); err != nil {
@@ -445,9 +463,11 @@ func (v *VodWorker) Start(ctx context.Context) error {
 		}
 
 		// Append new ts file to object.
+		// 将新的 TS 文件追加到对象中。
 		m3u8LocalObj.addMessage(ctx, msg)
 
 		// Always save the object to redis, for reloading it when restart.
+		// 始终将对象保存到 Redis 中，以便重启时重新加载。
 		if err := m3u8LocalObj.saveObject(ctx); err != nil {
 			return errors.Wrapf(err, "save %v", m3u8LocalObj.String())
 		}
@@ -456,6 +476,7 @@ func (v *VodWorker) Start(ctx context.Context) error {
 	}
 
 	// Process all messages about HLS ts segments.
+	// 处理所有关于 HLS TS 分片的消息。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -473,6 +494,7 @@ func (v *VodWorker) Start(ctx context.Context) error {
 	}()
 
 	// Load tencent cloud credentials.
+	// 定期加载腾讯云凭证。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

@@ -40,6 +40,9 @@ type CertManager struct {
 	certFileLock sync.Mutex
 }
 
+// NewCertManager 创建并返回一个新的CertManager实例。
+// 该函数初始化了CertManager结构体，并为其httpCertificateReload字段创建了一个容量为1的通道。
+// 这个通道用于触发证书的重新加载操作，确保在需要时可以安全、高效地更新证书。
 func NewCertManager() *CertManager {
 	return &CertManager{
 		httpCertificateReload: make(chan bool, 1),
@@ -138,7 +141,14 @@ func (v *CertManager) createSelfSignCertificate(ctx context.Context) error {
 	return nil
 }
 
+// ReloadCertificate 重新加载证书。
+// 该函数尝试将一个 true 值发送到 httpCertificateReload 通道，以触发证书的重新加载。
+// 如果在发送过程中上下文被取消或超时，函数会直接返回，不会进行重新加载。
+// 此方法主要用于在运行时更新证书，而无需重启应用程序。
 func (v *CertManager) ReloadCertificate(ctx context.Context) {
+	// 使用 select 语句尝试将 true 值发送到 httpCertificateReload 通道。
+	// 如果通道满了（即没有人接收），则不会阻塞，直接进入 default 分支。
+	// 如果上下文被取消或超时，也会退出函数。
 	select {
 	case v.httpCertificateReload <- true:
 	case <-ctx.Done():

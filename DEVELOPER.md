@@ -26,6 +26,14 @@ docker run --name srs --rm -it \
 
 > 注意：你可以通过 `--env CANDIDATE=$(ifconfig en0 |grep 'inet ' |awk '{print $2}')` 设置WebRTC的候选地址。
 
+### 各个端口详解
+
+- 1935(TCP)：RTMP 协议：默认用于接收 RTMP 推流（如 OBS、FFmpeg）和分发 RTMP 拉流，支持直播场景的实时传输
+- 1985(TCP)：HTTP API：提供 RESTful 接口管理流媒体服务，如查询推流状态、触发 WebRTC 信令、鉴权等；WebRTC 信令：处理 WebRTC 的 SDP 协商（如 WHIP 推流和 WHEP 播放）
+- 8080(TCP)：HTTP 服务：用于 HLS、HTTP-FLV 播放，以及 Web 管理界面访问；静态资源：托管播放器页面（如 rtc_player.html）和测试工具
+- 8000(UDP)：WebRTC 协议：处理 WebRTC 的 RTP/RTCP 数据包（音视频流）
+- 10080(UDP)：SRT UDP 端口，支持通过 SRT 协议推流。
+
 运行平台后端，或在 GoLand 中运行：
 
 ```bash

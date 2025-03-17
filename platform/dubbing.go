@@ -1142,6 +1142,9 @@ type SrsDubbingServer struct {
 	lock sync.Mutex
 }
 
+// NewDubbingServer 创建并返回一个新的SrsDubbingServer实例。
+// 该函数不需要任何参数。
+// 返回值是SrsDubbingServer的一个实例，用于提供配音服务。
 func NewDubbingServer() *SrsDubbingServer {
 	return &SrsDubbingServer{}
 }

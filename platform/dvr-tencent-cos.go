@@ -44,7 +44,14 @@ type DvrWorker struct {
 	streams sync.Map
 }
 
+// NewDvrWorker 创建并返回一个新的DvrWorker实例。
+// 该函数初始化了一个DvrWorker对象，其中包含一个用于处理消息的通道。
+// 返回值:
+//
+//	*DvrWorker: 新创建的DvrWorker实例。
 func NewDvrWorker() *DvrWorker {
+	// 初始化一个DvrWorker对象，其内部的消息通道容量为1024。
+	// 这个通道用于接收SrsOnHlsObject类型的对象，体现了DvrWorker的工作单元。
 	return &DvrWorker{
 		msgs: make(chan *SrsOnHlsObject, 1024),
 	}
@@ -281,24 +288,38 @@ func (v *DvrWorker) Close() error {
 	return nil
 }
 
+// Start 启动 DVR 工作器，初始化资源并开始处理任务。
+// 参数:
+//
+//	ctx - 上下文，用于控制生命周期和取消操作。
+//
+// 返回值:
+//
+//	error - 如果发生错误则返回非空的 error，否则返回 nil。
 func (v *DvrWorker) Start(ctx context.Context) error {
+	// 使用工作器的 WaitGroup 管理并发任务。
 	wg := &v.wg
 
+	// 创建一个可取消的上下文，用于后续任务的统一管理。
 	ctx, cancel := context.WithCancel(ctx)
 	v.cancel = cancel
 
+	// 将日志上下文附加到当前上下文中，便于记录日志。
 	ctx = logger.WithContext(ctx)
 	logger.Tf(ctx, "Dvr: start a worker")
 
 	// When system startup, we initialize the credentials, for worker to use it.
+	// 系统启动时初始化腾讯云凭证，供工作器使用。
 	if err := v.updateCredential(ctx); err != nil {
 		return errors.Wrapf(err, "update credential")
 	}
 
 	// Load all objects from redis.
+	// 从 Redis 加载所有正在工作的 M3U8 对象。
 	if objs, err := rdb.HGetAll(ctx, SRS_DVR_M3U8_WORKING).Result(); err != nil && err != redis.Nil {
 		return errors.Wrapf(err, "hgetall %v", SRS_DVR_M3U8_WORKING)
 	} else if len(objs) > 0 {
+		// 遍历加载的对象，初始化并启动每个 M3U8 流。
 		for m3u8URL, value := range objs {
 			logger.Tf(ctx, "Load %v object %v", m3u8URL, value)
 
@@ -307,14 +328,15 @@ func (v *DvrWorker) Start(ctx context.Context) error {
 				return errors.Wrapf(err, "load %v", value)
 			}
 
-			// Initialize object.
+			// Initialize object.// 初始化对象。
 			if err := m3u8LocalObj.Initialize(ctx, v); err != nil {
 				return errors.Wrapf(err, "init %v", m3u8LocalObj.String())
 			}
 
-			// Save in memory object.
+			// Save in memory object.// 将对象存储在内存中。
 			v.streams.Store(m3u8URL, &m3u8LocalObj)
 
+			// 启动一个 Goroutine 处理该对象的任务。
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -325,11 +347,11 @@ func (v *DvrWorker) Start(ctx context.Context) error {
 		}
 	}
 
-	// Create M3u8 object from message.
+	// Create M3u8 object from message.	// 根据消息创建 M3U8 对象。
 	buildM3u8Object := func(ctx context.Context, msg *SrsOnHlsObject) error {
 		logger.Tf(ctx, "Dvr: Got message %v", msg.String())
 
-		// Load stream local object.
+		// Load stream local object.// 加载或创建本地流对象。
 		var m3u8LocalObj *DvrM3u8Stream
 		var freshObject bool
 		if obj, loaded := v.streams.LoadOrStore(msg.Msg.M3u8URL, &DvrM3u8Stream{
@@ -338,7 +360,7 @@ func (v *DvrWorker) Start(ctx context.Context) error {
 			m3u8LocalObj, freshObject = obj.(*DvrM3u8Stream), !loaded
 		}
 
-		// Serve object if fresh one.
+		// Serve object if fresh one.// 如果是新对象，则初始化并启动任务。
 		if freshObject {
 			// Initialize object.
 			if err := m3u8LocalObj.Initialize(ctx, v); err != nil {
@@ -354,10 +376,11 @@ func (v *DvrWorker) Start(ctx context.Context) error {
 			}()
 		}
 
-		// Append new ts file to object.
+		// Append new ts file to object.// 将新的 TS 文件追加到对象中。
 		m3u8LocalObj.addMessage(ctx, msg)
 
 		// Always save the object to redis, for reloading it when restart.
+		// 始终将对象保存到 Redis 中，以便重启时重新加载。
 		if err := m3u8LocalObj.saveObject(ctx); err != nil {
 			return errors.Wrapf(err, "save %v", m3u8LocalObj.String())
 		}
@@ -366,6 +389,7 @@ func (v *DvrWorker) Start(ctx context.Context) error {
 	}
 
 	// Process all messages about HLS ts segments.
+	// 处理所有关于 HLS TS 片段的消息。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -383,6 +407,7 @@ func (v *DvrWorker) Start(ctx context.Context) error {
 	}()
 
 	// Load tencent cloud credentials.
+	// 定期更新腾讯云凭证。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

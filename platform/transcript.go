@@ -46,15 +46,23 @@ type TranscriptWorker struct {
 	tsfiles chan *SrsOnHlsObject
 }
 
+// NewTranscriptWorker 创建并返回一个新的 TranscriptWorker 实例。
+// 该函数初始化 TranscriptWorker 结构体，并设置必要的通道以用于任务处理和消息传递。
 func NewTranscriptWorker() *TranscriptWorker {
+	// 初始化 TranscriptWorker 实例。
+	// msgs: 用于接收 SrsOnHlsMessage 类型的消息，缓冲区大小为 1024。
+	// tsfiles: 用于接收 SrsOnHlsObject 类型的对象，缓冲区大小为 1024。
 	v := &TranscriptWorker{
 		// Message on_hls.
 		msgs: make(chan *SrsOnHlsMessage, 1024),
 		// TS files.
 		tsfiles: make(chan *SrsOnHlsObject, 1024),
 	}
+	// 初始化与该 worker 相关的任务。
 	v.task = NewTranscriptTask()
+	// 将当前 worker 设置到任务中，形成双向引用关系。
 	v.task.transcriptWorker = v
+	// 返回初始化完成的 TranscriptWorker 实例。
 	return v
 }
 
@@ -1003,9 +1011,17 @@ func (v *TranscriptWorker) Close() error {
 	return nil
 }
 
+// Start 启动转录工作器，初始化并运行多个 Goroutine 来处理不同的任务阶段。
+// 参数:
+//   - ctx: 上下文对象，用于控制 Goroutine 的生命周期和取消操作。
+//
+// 返回值:
+//   - error: 如果在启动过程中发生错误，则返回相应的错误信息；否则返回 nil。
 func (v *TranscriptWorker) Start(ctx context.Context) error {
+	// 初始化 WaitGroup 以同步 Goroutine。
 	wg := &v.wg
 
+	// 创建可取消的上下文，以便在需要时停止所有 Goroutine。
 	ctx, cancel := context.WithCancel(ctx)
 	v.cancel = cancel
 
@@ -1013,10 +1029,12 @@ func (v *TranscriptWorker) Start(ctx context.Context) error {
 	logger.Tf(ctx, "transcript start a worker")
 
 	// Load task from redis and continue to run the task.
+	// 从 Redis 加载任务并继续运行任务。
 	if objs, err := rdb.HGetAll(ctx, SRS_TRANSCRIPT_TASK).Result(); err != nil && err != redis.Nil {
 		return errors.Wrapf(err, "hgetall %v", SRS_TRANSCRIPT_TASK)
 	} else if len(objs) != 1 {
 		// Only support one task right now.
+		// 当前仅支持一个任务。
 		if err = rdb.Del(ctx, SRS_TRANSCRIPT_TASK).Err(); err != nil && err != redis.Nil {
 			return errors.Wrapf(err, "del %v", SRS_TRANSCRIPT_TASK)
 		}
@@ -1033,6 +1051,7 @@ func (v *TranscriptWorker) Start(ctx context.Context) error {
 	}
 
 	// Start global transcript task.
+	// 启动全局转录任务。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1055,6 +1074,7 @@ func (v *TranscriptWorker) Start(ctx context.Context) error {
 	}()
 
 	// Consume all on_hls messages.
+	// 消费所有的 on_hls 消息。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1071,6 +1091,7 @@ func (v *TranscriptWorker) Start(ctx context.Context) error {
 	}()
 
 	// Consume all ts files by task.
+	// 消费任务的所有 TS 文件。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1088,6 +1109,7 @@ func (v *TranscriptWorker) Start(ctx context.Context) error {
 	}()
 
 	// Watch for new stream.
+	// 监控新流的出现。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1110,6 +1132,7 @@ func (v *TranscriptWorker) Start(ctx context.Context) error {
 	}()
 
 	// Drive the live queue to ASR.
+	// 驱动实时队列到 ASR 队列。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1132,6 +1155,7 @@ func (v *TranscriptWorker) Start(ctx context.Context) error {
 	}()
 
 	// Drive the asr queue to correct queue.
+	// 驱动 ASR 队列到修正队列。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1154,6 +1178,7 @@ func (v *TranscriptWorker) Start(ctx context.Context) error {
 	}()
 
 	// Drive the fix queue to overlay queue.
+	// 驱动修正队列到叠加队列。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1176,6 +1201,7 @@ func (v *TranscriptWorker) Start(ctx context.Context) error {
 	}()
 
 	// Drive the overlay queue, remove old files.
+	// 驱动叠加队列，移除旧文件。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -1492,21 +1518,23 @@ type TranscriptTask struct {
 	lock sync.Mutex
 }
 
+// NewTranscriptTask 创建一个新的转录任务对象并返回其指针。
+// 该函数初始化一个 TranscriptTask 对象，为其分配唯一的任务 ID (UUID)，并设置多个队列以处理不同阶段的任务数据。
 func NewTranscriptTask() *TranscriptTask {
 	return &TranscriptTask{
-		// Generate a UUID for task.
+		// 为任务生成一个全局唯一的标识符 (UUID)。
 		UUID: uuid.NewString(),
-		// The live queue for current task.
+		// 初始化当前任务的实时队列 (LiveQueue)，用于存储从直播流中提取的 TS 分段。
 		LiveQueue: NewTranscriptQueue(),
-		// The asr queue for current task.
+		// 初始化当前任务的自动语音识别队列 (AsrQueue)，用于存储已提取音频的分段，等待进行语音转文字处理。
 		AsrQueue: NewTranscriptQueue(),
-		// The fix queue for current task.
+		// 初始化当前任务的修正队列 (FixQueue)，用于存储需要用户手动修正 ASR 结果的分段。
 		FixQueue: NewTranscriptQueue(),
-		// The overlay queue for current task.
+		// 初始化当前任务的叠加队列 (OverlayQueue)，用于存储已完成 ASR 处理的分段，等待将字幕叠加到视频上。
 		OverlayQueue: NewTranscriptQueue(),
-		// Create persistence signal.
+		// 创建一个信道用于持久化信号通知，缓冲区大小为1。
 		signalPersistence: make(chan bool, 1),
-		// Create new stream signal.
+		// 创建一个信道用于通知新流信号，缓冲区大小为1，类型为 *SrsStream。
 		signalNewStream: make(chan *SrsStream, 1),
 	}
 }

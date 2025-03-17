@@ -54,8 +54,8 @@ type Config struct {
 
 	Cloud    string
 	Region   string
-	Source   string
-	Registry string
+	Source   string // 拉取代码的源，github、gitee
+	Registry string // 拉取镜像仓库
 
 	// Discover by iface.
 	ipv4  net.IP
@@ -65,14 +65,23 @@ type Config struct {
 	Versions Versions
 }
 
+// NewConfig 创建并返回一个新的Config实例。
+// 该函数初始化Config结构体，并设置一些默认值。
+// 主要用于获取配置的初始状态。
 func NewConfig() *Config {
 	return &Config{
-		ipv4:     net.IPv4zero,
+		// 设置ipv4地址为IPv4零地址，即0.0.0.0。
+		ipv4: net.IPv4zero,
+		// 根据运行时的操作系统判断是否为Darwin系统。
 		IsDarwin: runtime.GOOS == "darwin",
+		// 初始化Versions结构体，设置版本信息。
 		Versions: Versions{
+			// 当前版本号
 			Version: "v0.0.0",
-			Latest:  "v0.0.0",
-			Stable:  "v0.0.0",
+			// 最新版本号
+			Latest: "v0.0.0",
+			// 稳定版本号
+			Stable: "v0.0.0",
 		},
 	}
 }
@@ -89,7 +98,19 @@ func (v *Config) String() string {
 	)
 }
 
+// discoverRegion 自动发现当前环境所在的云服务提供商和区域。
+// 该函数根据环境变量、配置信息或通过网络请求来确定云服务提供商和区域。
+// 参数:
+//
+//	ctx context.Context: 上下文，用于取消操作和传递请求范围的值。
+//
+// 返回值:
+//
+//	cloud string: 云服务提供商的标识符。
+//	region string: 云服务提供商的区域。
+//	err error: 错误信息，如果发现过程中遇到任何问题，则返回相应的错误。
 func discoverRegion(ctx context.Context) (cloud, region string, err error) {
+	// 检查环境变量以确定云服务提供商和区域。
 	if envCloud() == "BT" {
 		return "BT", "ap-beijing", nil
 	}
@@ -106,22 +127,29 @@ func discoverRegion(ctx context.Context) (cloud, region string, err error) {
 		return "DOCKER", "ap-beijing", nil
 	}
 
+	// 如果环境变量中指定了云服务提供商和区域，则直接返回。
 	if envCloud() != "" && envRegion() != "" {
 		return envCloud(), envRegion(), nil
 	}
 
+	// 如果是MacOS环境，则默认返回开发环境的云服务提供商和区域。
 	if conf.IsDarwin {
 		return "DEV", "ap-beijing", nil
 	}
 
+	// 记录日志，开始自动发现区域。
 	logger.Tf(ctx, "Initialize start to discover region")
 
+	// 使用等待组来同步协程。
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
+	// 创建一个可以取消的上下文，用于控制并发的HTTP请求。
 	discoverCtx, discoverCancel := context.WithCancel(ctx)
+	// 创建一个通道，用于接收并发请求的结果。
 	result := make(chan Config, 2)
 
+	// 并发请求腾讯云的元数据服务来发现区域。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -139,6 +167,7 @@ func discoverRegion(ctx context.Context) (cloud, region string, err error) {
 			return
 		}
 
+		// 根据请求结果选择性地发送结果到通道或取消操作。
 		select {
 		case <-discoverCtx.Done():
 		case result <- Config{Cloud: "TENCENT", Region: string(b)}:
@@ -146,6 +175,7 @@ func discoverRegion(ctx context.Context) (cloud, region string, err error) {
 		}
 	}()
 
+	// 并发请求DigitalOcean的元数据服务来发现区域。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -164,6 +194,7 @@ func discoverRegion(ctx context.Context) (cloud, region string, err error) {
 			return
 		}
 
+		// 根据请求结果选择性地发送结果到通道或取消操作。
 		select {
 		case <-discoverCtx.Done():
 		case result <- Config{Cloud: "DO", Region: string(b)}:
@@ -171,6 +202,7 @@ func discoverRegion(ctx context.Context) (cloud, region string, err error) {
 		}
 	}()
 
+	// 选择性地接收结果或上下文完成信号。
 	select {
 	case <-ctx.Done():
 	case r := <-result:
@@ -179,21 +211,30 @@ func discoverRegion(ctx context.Context) (cloud, region string, err error) {
 	return
 }
 
+// discoverSource 根据云服务提供商和区域发现代码源。
+// 该函数接收一个上下文、云服务提供商标识和区域标识作为参数，
+// 并返回相应的代码源字符串和错误信息（如果有的话）。
 func discoverSource(ctx context.Context, cloud, region string) (source string, err error) {
+	// 根据云服务提供商标识判断代码源
 	switch cloud {
 	case "DEV", "BT", "BIN", "DOCKER":
+		// 对于开发、BT、BIN和DOCKER云，使用gitee作为代码源
 		return "gitee", nil
 	case "DO", "AAPANEL":
+		// 对于DO和AAPANEL云，使用github作为代码源
 		return "github", nil
 	}
 
+	// 遍历预定义的阿里云区域列表
 	for _, r := range []string{
 		"ap-guangzhou", "ap-shanghai", "ap-nanjing", "ap-beijing", "ap-chengdu", "ap-chongqing",
 	} {
+		// 如果传入的区域参数以列表中的任何区域开头，选择gitee作为代码源
 		if strings.HasPrefix(region, r) {
 			return "gitee", nil
 		}
 	}
+	// 如果没有匹配到任何预定义区域，使用github作为默认代码源
 	return "github", nil
 }
 
@@ -363,6 +404,10 @@ var serverAllowVideoFiles []string = []string{".mp4", ".flv", ".ts", ".mkv", ".m
 var serverAllowAudioFiles []string = []string{".mp3", ".aac", ".m4a"}
 
 // Get the API secret from env.
+// envApiSecret 返回存储在环境变量中的API密钥。
+// 该函数没有参数。
+// 返回值为字符串类型，表示从环境变量"SRS_PLATFORM_SECRET"中获取的API密钥。
+// 如果环境变量中没有设置该值，返回空字符串。
 func envApiSecret() string {
 	return os.Getenv("SRS_PLATFORM_SECRET")
 }
@@ -371,6 +416,10 @@ func envNodeEnv() string {
 	return os.Getenv("NODE_ENV")
 }
 
+// envMgmtPassword 从环境变量中获取管理密码。
+// 该函数没有参数。
+// 返回值是一个字符串，表示环境变量 "MGMT_PASSWORD" 的值。
+// 如果环境变量未设置，则返回空字符串。
 func envMgmtPassword() string {
 	return os.Getenv("MGMT_PASSWORD")
 }
@@ -387,6 +436,10 @@ func envCloud() string {
 	return os.Getenv("CLOUD")
 }
 
+// envNameLookup 返回环境变量 NAME_LOOKUP 的值。
+// 此函数用于获取环境变量中的 NAME_LOOKUP 值，便于在程序中使用该环境变量。
+// 返回值:
+//   - string: 环境变量 NAME_LOOKUP 的值。如果环境变量未设置，则返回空字符串。
 func envNameLookup() string {
 	return os.Getenv("NAME_LOOKUP")
 }
@@ -395,6 +448,10 @@ func envPlatformDocker() string {
 	return os.Getenv("PLATFORM_DOCKER")
 }
 
+// envCandidate 返回环境变量 CANDIDATE 的值。
+// 此函数便于集中管理环境变量的获取，提高代码的可维护性和可读性。
+// 它没有输入参数。
+// 返回值是 CANDIDATE 环境变量的字符串值，如果环境变量未设置，则返回空字符串。
 func envCandidate() string {
 	return os.Getenv("CANDIDATE")
 }
@@ -443,6 +500,9 @@ func envRedisHost() string {
 	return os.Getenv("REDIS_HOST")
 }
 
+// envRedisDatabase 返回环境变量 REDIS_DATABASE 的值。
+// 该函数没有参数。
+// 返回值是字符串类型，表示 REDIS_DATABASE 环境变量的值。
 func envRedisDatabase() string {
 	return os.Getenv("REDIS_DATABASE")
 }
@@ -471,6 +531,9 @@ func envRegistry() string {
 	return os.Getenv("REGISTRY")
 }
 
+// envPath 返回当前进程的 PATH 环境变量值。
+// 该函数没有参数。
+// 返回值是 PATH 环境变量的字符串值。
 func envPath() string {
 	return os.Getenv("PATH")
 }
@@ -487,6 +550,9 @@ func envCameraLimit() string {
 	return os.Getenv("SRS_CAMERA_LIMIT")
 }
 
+// envGoPprof 返回环境变量 GO_PPROF 的值。
+// 此函数没有输入参数。
+// 返回值为字符串类型，表示环境变量 GO_PPROF 的值；如果环境变量未设置，则返回空字符串。
 func envGoPprof() string {
 	return os.Getenv("GO_PPROF")
 }
@@ -499,17 +565,24 @@ func envYtdlProxy() string {
 var rdb *redis.Client
 
 // InitRdb create and init global rdb, which is a redis client.
+// InitRdb 初始化Redis数据库连接。
+// 该函数读取环境变量中的Redis配置信息，创建并返回一个Redis客户端实例。
+// 如果环境变量中的配置信息无效或无法连接到Redis服务器，则返回错误。
 func InitRdb() error {
+	// 将环境变量中的数据库索引转换为整数。
 	redisDatabase, err := strconv.Atoi(envRedisDatabase())
 	if err != nil {
+		// 如果转换失败，返回错误信息，指示环境变量配置有误。
 		return errors.Wrapf(err, "invalid REDIS_DATABASE %v", envRedisDatabase())
 	}
 
+	// 使用环境变量中的配置信息创建Redis客户端实例。
 	rdb = redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%v:%v", envRedisHost(), envRedisPort()),
 		Password: envRedisPassword(),
 		DB:       redisDatabase,
 	})
+	// 如果成功创建Redis客户端实例，返回nil表示初始化成功。
 	return nil
 }
 
@@ -540,31 +613,39 @@ func createToken(ctx context.Context, apiSecret string) (expireAt, createAt time
 	return expireAt, createAt, token, nil
 }
 
-// Refresh the ipv4 address.
+// refreshIPv4 定期刷新私有 IPv4 地址。
+// 该函数通过 discoverPrivateIPv4 函数发现当前设备的私有 IPv4 地址，并将其存储到全局配置 conf 中。
+// ctx 是用于控制函数执行的上下文，当上下文被取消时，函数将退出。
 func refreshIPv4(ctx context.Context) error {
+	// discoverPrivateIPv4 是一个内部函数，用于发现当前设备的私有 IPv4 地址。
+	// 返回值包括：网络接口名称、私有 IPv4 地址以及错误信息。
 	discoverPrivateIPv4 := func(ctx context.Context) (string, net.IP, error) {
-		candidates := make(map[string]net.IP)
+		candidates := make(map[string]net.IP) // 用于存储候选的网络接口及其对应的 IPv4 地址。
 
-		ifaces, err := net.Interfaces()
+		ifaces, err := net.Interfaces() // 获取所有网络接口。
 		if err != nil {
-			return "", nil, err
+			return "", nil, err // 如果获取失败，返回错误。
 		}
-		for _, iface := range ifaces {
-			addrs, err := iface.Addrs()
+		for _, iface := range ifaces { // 遍历每个网络接口。
+			addrs, err := iface.Addrs() // 获取当前网络接口的所有地址。
 			if err != nil {
-				return "", nil, err
+				return "", nil, err // 如果获取失败，返回错误。
 			}
 
-			for _, addr := range addrs {
+			for _, addr := range addrs { // 遍历每个地址。
+				// 检查是否为 IP 网络地址。
 				if addr, ok := addr.(*net.IPNet); ok {
+					// 确保是 IPv4 地址且不是回环地址。
 					if addr.IP.To4() != nil && !addr.IP.IsLoopback() {
+						// 将有效的 IPv4 地址加入候选列表。
 						candidates[iface.Name] = addr.IP
 					}
 				}
 			}
 		}
 
-		var bestMatch string
+		var bestMatch string // 存储最佳匹配的网络接口名称。
+		// 遍历候选列表，优先选择以 "en" 或 "eth" 开头的网络接口。
 		for name, _ := range candidates {
 			if strings.HasPrefix(name, "en") || strings.HasPrefix(name, "eth") {
 				bestMatch = name
@@ -572,6 +653,7 @@ func refreshIPv4(ctx context.Context) error {
 			}
 		}
 
+		// 如果没有找到以 "en" 或 "eth" 开头的网络接口，则选择第一个候选接口。
 		if bestMatch == "" {
 			for name, _ := range candidates {
 				bestMatch = name
@@ -579,40 +661,42 @@ func refreshIPv4(ctx context.Context) error {
 			}
 		}
 
-		var privateIPv4 net.IP
-		if bestMatch != "" {
-			if addr, ok := candidates[bestMatch]; ok {
+		var privateIPv4 net.IP // 存储最终选择的私有 IPv4 地址。
+		if bestMatch != "" {   // 如果找到了最佳匹配的网络接口。
+			if addr, ok := candidates[bestMatch]; ok { // 获取对应的 IPv4 地址。
 				privateIPv4 = addr
 			}
 		}
 
 		logger.Tf(ctx, "Refresh ipv4=%v, bestMatch=%v, candidates=%v", privateIPv4, bestMatch, candidates)
-		return bestMatch, privateIPv4, nil
+		return bestMatch, privateIPv4, nil // 返回网络接口名称、私有 IPv4 地址和错误信息。
 	}
 
+	// 创建一个可以取消的上下文，用于控制并发的 IPv4 发现任务。
 	ipv4Ctx, ipv4Cancel := context.WithCancel(context.Background())
-	go func() {
-		ctx := logger.WithContext(ctx)
-		for ctx.Err() == nil {
-			if name, ipv4, err := discoverPrivateIPv4(ctx); err != nil {
-				logger.Wf(ctx, "ignore ipv4 discover err %v", err)
-			} else if name != "" && ipv4 != nil {
-				conf.ipv4 = ipv4
-				conf.Iface = name
-				ipv4Cancel()
+	go func() { // 启动一个 Goroutine 定期发现私有 IPv4 地址。
+		ctx := logger.WithContext(ctx) // 将日志上下文附加到当前上下文中。
+		for ctx.Err() == nil {         // 当上下文未被取消时，循环执行。
+			if name, ipv4, err := discoverPrivateIPv4(ctx); err != nil { // 调用 discoverPrivateIPv4 发现 IPv4 地址。
+				logger.Wf(ctx, "ignore ipv4 discover err %v", err) // 如果发现失败，记录警告日志。
+			} else if name != "" && ipv4 != nil { // 如果发现成功。
+				conf.ipv4 = ipv4  // 更新全局配置中的 IPv4 地址。
+				conf.Iface = name // 更新全局配置中的网络接口名称。
+				ipv4Cancel()      // 取消并发任务。
 			}
 
 			// The ip address might change, so we should always resolve it.
-			time.Sleep(time.Duration(60) * time.Second)
+			// IP 地址可能会变化，因此需要定期重新解析。
+			time.Sleep(time.Duration(60) * time.Second) // 每隔 60 秒重新解析一次。
 		}
 	}()
 
 	select {
-	case <-ctx.Done():
-	case <-ipv4Ctx.Done():
+	case <-ctx.Done(): // 如果主上下文被取消，则退出函数。
+	case <-ipv4Ctx.Done(): // 如果 IPv4 发现任务完成，则退出函数。
 	}
 
-	return nil
+	return nil // 返回无错误。
 }
 
 // setEnvDefault set env key=value if not set.
@@ -623,9 +707,19 @@ func setEnvDefault(key, value string) {
 }
 
 // srsGenerateConfig is to build SRS configuration and reload SRS.
+// srsGenerateConfig 生成 SRS（Simple RTMP Server）的配置，基于提供的上下文。
+// 该函数与 Redis 通信以获取配置详细信息，并写入必要的配置文件。
+// 参数:
+//
+//	ctx - 上下文对象，用于管理请求的生命周期。
+//
+// 返回值:
+//
+//	error - 如果在生成配置过程中发生错误，则返回相应的错误信息。
 func srsGenerateConfig(ctx context.Context) error {
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Build the High Performance HLS config.
+	// 构建高性能 HLS 配置。
 	hlsConf := []string{
 		"",
 		"hls {",
@@ -666,6 +760,7 @@ func srsGenerateConfig(ctx context.Context) error {
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Build the config for SRS.
+	// 构建 SRS 的配置。
 	if true {
 		confLines := []string{
 			"# !!! Important: This file is produced and maintained by the Oryx, please never modify it.",
@@ -704,6 +799,7 @@ func srsGenerateConfig(ctx context.Context) error {
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Fetch the reload result, the ID which represents the reload transaction.
+	// 获取重载结果，该 ID 表示重载事务。
 	fetchReload := func(ctx context.Context) (string, error) {
 		// TODO: FIXME: Remove it after SRS merged https://github.com/ossrs/srs/pull/3768
 		return time.Now().String(), nil
@@ -757,6 +853,7 @@ func srsGenerateConfig(ctx context.Context) error {
 	}
 
 	// Reload SRS to apply the new config.
+	// 重载 SRS 以应用新的配置。
 	if true {
 		api := "http://127.0.0.1:1985/api/v1/raw?rpc=reload"
 		res, err := http.DefaultClient.Get(api)
@@ -777,6 +874,7 @@ func srsGenerateConfig(ctx context.Context) error {
 	}
 
 	// Check reload result.
+	// 检查重载结果。
 	for i := 0; i < 10; i++ {
 		if newReloadID, err := fetchReload(ctx); err != nil {
 			return errors.Wrapf(err, "fetch reload id")
@@ -795,13 +893,23 @@ func srsGenerateConfig(ctx context.Context) error {
 }
 
 // nginxGenerateConfig is to build NGINX configuration and reload NGINX.
+// nginxGenerateConfig 生成 NGINX 配置文件并重新加载 NGINX。
+// 参数：
+//
+//	ctx - 上下文，用于控制超时和传递请求范围的值。
+//
+// 返回值：
+//
+//	error - 如果在生成配置或重新加载 NGINX 时发生错误，则返回非空的 error。
 func nginxGenerateConfig(ctx context.Context) error {
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	// Build the SSL/TLS config.
+	// Build the SSL/TLS config.// 构建 SSL/TLS 配置。
 	sslConf := []string{}
 	if ssl, err := rdb.Get(ctx, SRS_HTTPS).Result(); err != nil && err != redis.Nil {
+		// 如果从 Redis 获取 SRS_HTTPS 键的值失败且不是未找到键的错误，则返回错误。
 		return errors.Wrapf(err, "get %v", SRS_HTTPS)
 	} else if ssl == "ssl" || ssl == "lets" {
+		// 如果值为 "ssl" 或 "lets"，则构建 SSL/TLS 配置。
 		sslConf = []string{
 			"",
 			"# For SSL/TLS config.",
@@ -820,9 +928,12 @@ func nginxGenerateConfig(ctx context.Context) error {
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Build the default root.
 	// Note that it's been removed, see SRS_HTTP_PROXY.
+	// 构建默认根目录配置。
+	// 注意：此部分已被移除，详见 SRS_HTTP_PROXY。
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Build the upload limit for uploader(vLive).
+	// 构建上传限制配置（适用于 vLive）。
 	uploadLimit := []string{
 		"",
 		"# Limit for upload file size",
@@ -831,18 +942,22 @@ func nginxGenerateConfig(ctx context.Context) error {
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Build the config for NGINX.
+	// 构建 NGINX 配置。
 	if true {
 		confLines := []string{
 			"# !!! Important: This file is produced and maintained by the Oryx, please never modify it.",
 		}
 		confLines = append(confLines, "", "")
 
+		// 将配置行转换为字符串。
 		confData := strings.Join(confLines, "\n")
 		fileName := path.Join(conf.Pwd, "containers/data/config/nginx.http.conf")
 		if f, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
+			// 如果无法打开文件，则返回错误。
 			return errors.Wrapf(err, "open file %v", fileName)
 		} else {
 			defer f.Close()
+			// 写入配置数据到文件。
 			if _, err = f.Write([]byte(confData)); err != nil {
 				return errors.Wrapf(err, "write file %v with %v", fileName, confData)
 			}
@@ -852,16 +967,20 @@ func nginxGenerateConfig(ctx context.Context) error {
 		confLines := []string{
 			"# !!! Important: This file is produced and maintained by the Oryx, please never modify it.",
 		}
+		// 添加上传限制和 SSL 配置。
 		confLines = append(confLines, uploadLimit...)
 		confLines = append(confLines, sslConf...)
 		confLines = append(confLines, "", "")
 
+		// 将配置行转换为字符串。
 		confData := strings.Join(confLines, "\n")
 		fileName := path.Join(conf.Pwd, "containers/data/config/nginx.server.conf")
 		if f, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644); err != nil {
+			// 如果无法打开文件，则返回错误。
 			return errors.Wrapf(err, "open file %v", fileName)
 		} else {
 			defer f.Close()
+			// 写入配置数据到文件。
 			if _, err = f.Write([]byte(confData)); err != nil {
 				return errors.Wrapf(err, "write file %v with %v", fileName, confData)
 			}
@@ -870,14 +989,17 @@ func nginxGenerateConfig(ctx context.Context) error {
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Reload NGINX to apply the new config.
+	// 重新加载 NGINX 以应用新的配置。
 	reloadNginx := func(ctx context.Context) error {
 		defer certManager.ReloadCertificate(ctx)
 
+		// 如果是 Darwin 系统，则忽略重新加载 NGINX。
 		if conf.IsDarwin {
 			logger.T(ctx, "ignore reload nginx on darwin")
 			return nil
 		}
 
+		// 创建一个信号文件以触发 NGINX 重新加载。
 		fileName := path.Join(conf.Pwd, fmt.Sprintf("containers/data/signals/nginx.reload.%v",
 			time.Now().UnixNano()/int64(time.Millisecond),
 		))
@@ -893,6 +1015,7 @@ func nginxGenerateConfig(ctx context.Context) error {
 		return nil
 	}
 
+	// 调用重新加载函数。
 	if err := reloadNginx(ctx); err != nil {
 		return errors.Wrapf(err, "reload nginx")
 	}

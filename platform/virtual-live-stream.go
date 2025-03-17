@@ -40,6 +40,10 @@ type VLiveWorker struct {
 	tasks sync.Map
 }
 
+// NewVLiveWorker 创建并返回一个新的 VLiveWorker 实例。
+// 该函数不接受任何参数。
+// 返回值是一个指向 VLiveWorker 类型的指针，表示新创建的实例。
+// 此函数用于初始化 VLiveWorker 类型的实例，以便进行进一步的操作。
 func NewVLiveWorker() *VLiveWorker {
 	return &VLiveWorker{}
 }
@@ -860,38 +864,52 @@ func (v *VLiveWorker) Close() error {
 	return nil
 }
 
+// Start 启动 VLiveWorker，加载任务并持续运行。
+// 参数:
+//
+//	ctx - 上下文，用于控制生命周期和取消操作。
+//
+// 返回值:
+//
+//	error - 如果启动过程中发生错误，则返回具体的错误信息；否则返回 nil。
 func (v *VLiveWorker) Start(ctx context.Context) error {
-	wg := &v.wg
+	wg := &v.wg // 使用工作组 wg 来管理并发任务。
 
+	// 创建一个可取消的上下文，以便在需要时停止所有子任务。
 	ctx, cancel := context.WithCancel(ctx)
 	v.cancel = cancel
 
+	// 将日志上下文附加到 ctx 中，以便在日志中记录相关信息。
 	ctx = logger.WithContext(ctx)
-	logger.Tf(ctx, "vLive: Start a worker")
+	logger.Tf(ctx, "vLive: Start a worker") // 记录日志：启动工作者。
 
 	// Load tasks from redis and force to kill all.
+	// 从 Redis 加载任务，并强制清理所有现有任务。
 	if objs, err := rdb.HGetAll(ctx, SRS_VLIVE_TASK).Result(); err != nil && err != redis.Nil {
-		return errors.Wrapf(err, "hgetall %v", SRS_VLIVE_TASK)
+		return errors.Wrapf(err, "hgetall %v", SRS_VLIVE_TASK) // 如果加载失败，返回错误。
 	} else if len(objs) > 0 {
 		for uuid, obj := range objs {
-			logger.Tf(ctx, "vLive: Load task %v object %v", uuid, obj)
+			logger.Tf(ctx, "vLive: Load task %v object %v", uuid, obj) // 记录日志：加载任务。
 
 			var task VLiveTask
 			if err = json.Unmarshal([]byte(obj), &task); err != nil {
-				return errors.Wrapf(err, "unmarshal %v %v", uuid, obj)
+				return errors.Wrapf(err, "unmarshal %v %v", uuid, obj) // 如果反序列化失败，返回错误。
 			}
 
+			// 如果任务有 PID，调用 cleanup 方法清理任务。
 			if task.PID > 0 {
 				task.cleanup(ctx)
 			}
 		}
 
+		// 删除 Redis 中的任务键。
 		if err = rdb.Del(ctx, SRS_VLIVE_TASK).Err(); err != nil && err != redis.Nil {
 			return errors.Wrapf(err, "del %v", SRS_VLIVE_TASK)
 		}
 	}
 
 	// Load all configurations from redis.
+	// 定义一个函数，用于从 Redis 加载配置并启动任务。
 	loadTasks := func() error {
 		configItems, err := rdb.HGetAll(ctx, SRS_VLIVE_CONFIG).Result()
 		if err != nil && err != redis.Nil {
@@ -907,6 +925,7 @@ func (v *VLiveWorker) Start(ctx context.Context) error {
 				return errors.Wrapf(err, "unmarshal %v %v", platform, configItem)
 			}
 
+			// 创建或加载任务。
 			var task *VLiveTask
 			if tv, loaded := v.tasks.LoadOrStore(config.Platform, &VLiveTask{
 				UUID:     uuid.NewString(),
@@ -920,12 +939,12 @@ func (v *VLiveWorker) Start(ctx context.Context) error {
 				logger.Tf(ctx, "vLive: Create platform=%v task is %v", platform, task.String())
 			}
 
-			// Initialize object.
+			// Initialize object. // 初始化任务。
 			if err := task.Initialize(ctx, v); err != nil {
 				return errors.Wrapf(err, "init %v", task.String())
 			}
 
-			// Store in memory object.
+			// Store in memory object.// 将任务存储在内存中。
 			v.tasks.Store(platform, task)
 
 			wg.Add(1)
@@ -941,27 +960,29 @@ func (v *VLiveWorker) Start(ctx context.Context) error {
 		return nil
 	}
 
+	// 启动一个后台任务，定期加载任务。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
 		// When startup, we try to wait for client to publish streams.
+		// 等待一段时间，确保客户端有时间发布流。
 		select {
 		case <-ctx.Done():
 		case <-time.After(3 * time.Second):
 		}
 		logger.Tf(ctx, "vLive: Start to run tasks")
 
-		for ctx.Err() == nil {
+		for ctx.Err() == nil { // 持续运行，直到上下文被取消。
 			duration := 3 * time.Second
 			if err := loadTasks(); err != nil {
 				logger.Wf(ctx, "ignore err %+v", err)
-				duration = 10 * time.Second
+				duration = 10 * time.Second // 增加等待时间。
 			}
 
 			select {
-			case <-ctx.Done():
-			case <-time.After(duration):
+			case <-ctx.Done(): // 如果上下文被取消，退出循环。
+			case <-time.After(duration): // 等待指定时间后再次尝试加载任务。
 			}
 		}
 	}()

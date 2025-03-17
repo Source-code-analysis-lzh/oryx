@@ -32,6 +32,10 @@ type HttpService interface {
 	Run(ctx context.Context) error
 }
 
+// NewHTTPService 创建并返回一个新的 HttpService 实例。
+// 该函数不接受任何参数。
+// 返回值是 HttpService 接口类型，具体实现了该接口的所有方法。
+// 此函数用于初始化 HTTP 服务，为用户提供一个 ready-to-use 的服务实例。
 func NewHTTPService() HttpService {
 	return &httpService{}
 }
@@ -64,6 +68,9 @@ func (v *httpService) Close() error {
 	return nil
 }
 
+// Run 启动HTTP服务并监听指定地址。
+// 该方法根据环境配置设置不同服务的HTTP服务器。
+// ctx用于服务的优雅关闭。
 func (v *httpService) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	defer wg.Wait()
@@ -81,24 +88,30 @@ func (v *httpService) Run(ctx context.Context) error {
 	handler := http.NewServeMux()
 	if true {
 		serviceHandler := http.NewServeMux()
+		// 处理HTTP服务，如果出错则返回错误信息
 		if err := handleHTTPService(ctx, serviceHandler); err != nil {
 			return errors.Wrapf(err, "handle service")
 		}
 
+		// 设置根路径的处理函数，包括设置通用头部、CORS策略等
 		handler.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			// Set common header.
+			// 设置通用头部
 			ohttp.SetHeader(w)
 
 			// Always allow CORS.
+			// 始终允许CORS
 			httpAllowCORS(w, r)
 
 			// Allow OPTIONS for CORS.
+			// 允许OPTIONS请求用于CORS
 			if r.Method == http.MethodOptions {
 				w.Write(nil)
 				return
 			}
 
 			// Handle by service handler.
+			// 通过服务处理器处理请求
 			serviceHandler.ServeHTTP(w, r)
 		})
 	}
@@ -115,6 +128,7 @@ func (v *httpService) Run(ctx context.Context) error {
 		v.servers = append(v.servers, server)
 
 		wg.Add(1)
+		// 监听上下文取消信号，关闭服务器
 		go func() {
 			defer wg.Done()
 			<-ctx.Done()
@@ -123,6 +137,7 @@ func (v *httpService) Run(ctx context.Context) error {
 		}()
 
 		wg.Add(1)
+		// 启动HTTP服务器，记录错误信息
 		go func() {
 			defer wg.Done()
 			defer cancel()
@@ -145,6 +160,7 @@ func (v *httpService) Run(ctx context.Context) error {
 		v.servers = append(v.servers, server)
 
 		wg.Add(1)
+		// 监听上下文取消信号，关闭服务器
 		go func() {
 			defer wg.Done()
 			<-ctx.Done()
@@ -153,6 +169,7 @@ func (v *httpService) Run(ctx context.Context) error {
 		}()
 
 		wg.Add(1)
+		// 启动HTTP服务器，记录错误信息
 		go func() {
 			defer wg.Done()
 			defer cancel()
@@ -183,6 +200,7 @@ func (v *httpService) Run(ctx context.Context) error {
 		v.servers = append(v.servers, server)
 
 		wg.Add(1)
+		// 监听上下文取消信号，关闭服务器
 		go func() {
 			defer wg.Done()
 			<-ctx.Done()
@@ -191,6 +209,7 @@ func (v *httpService) Run(ctx context.Context) error {
 		}()
 
 		wg.Add(1)
+		// 启动HTTPS服务器，记录错误信息
 		go func() {
 			defer wg.Done()
 			defer cancel()
@@ -202,6 +221,7 @@ func (v *httpService) Run(ctx context.Context) error {
 	}
 
 	wg.Wait()
+	// 检查所有服务器启动过程中是否有错误发生
 	for _, r := range []error{r0, r1, r2} {
 		if r != nil {
 			return r

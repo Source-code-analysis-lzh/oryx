@@ -35,6 +35,9 @@ type ForwardWorker struct {
 	tasks sync.Map
 }
 
+// NewForwardWorker 创建并返回一个新的 ForwardWorker 实例。
+// 该函数不需要任何参数。
+// 返回值是一个指向 ForwardWorker 结构的指针，表示新创建的 ForwardWorker 实例。
 func NewForwardWorker() *ForwardWorker {
 	return &ForwardWorker{}
 }
@@ -222,16 +225,28 @@ func (v *ForwardWorker) Close() error {
 	return nil
 }
 
+// Start 初始化并运行转发任务，基于从 Redis 加载的配置。
+// 该函数用于启动转发工作器，加载 Redis 中的任务和配置，
+// 初始化任务并在单独的 goroutine 中运行它们。
+// 参数:
+//   - ctx: 上下文，用于控制任务的生命周期。
+//
+// 返回值:
+//   - error: 如果在启动过程中发生错误，则返回错误信息。
 func (v *ForwardWorker) Start(ctx context.Context) error {
+	// 使用 WaitGroup 等待所有任务完成。
 	wg := &v.wg
 
+	// 创建一个可取消的上下文，用于任务控制。
 	ctx, cancel := context.WithCancel(ctx)
 	v.cancel = cancel
 
+	// 添加日志功能到上下文中。
 	ctx = logger.WithContext(ctx)
 	logger.Tf(ctx, "forward start a worker")
 
 	// Load tasks from redis and force to kill all.
+	// 从 Redis 加载任务并强制终止所有任务。
 	if objs, err := rdb.HGetAll(ctx, SRS_FORWARD_TASK).Result(); err != nil && err != redis.Nil {
 		return errors.Wrapf(err, "hgetall %v", SRS_FORWARD_TASK)
 	} else if len(objs) > 0 {
@@ -254,6 +269,7 @@ func (v *ForwardWorker) Start(ctx context.Context) error {
 	}
 
 	// Load all configurations from redis.
+	// 从 Redis 加载所有配置。
 	loadTasks := func() error {
 		configItems, err := rdb.HGetAll(ctx, SRS_FORWARD_CONFIG).Result()
 		if err != nil && err != redis.Nil {
@@ -275,19 +291,19 @@ func (v *ForwardWorker) Start(ctx context.Context) error {
 				Platform: config.Platform,
 				config:   &config,
 			}); loaded {
-				// Ignore if exists.
+				// Ignore if exists. 如果任务已存在，则忽略。
 				continue
 			} else {
 				task = tv.(*ForwardTask)
 				logger.Tf(ctx, "Forward create platform=%v task is %v", platform, task.String())
 			}
 
-			// Initialize object.
+			// Initialize object. // 初始化任务对象。
 			if err := task.Initialize(ctx, v); err != nil {
 				return errors.Wrapf(err, "init %v", task.String())
 			}
 
-			// Store in memory object.
+			// Store in memory object. // 将任务存储在内存中。
 			v.tasks.Store(platform, task)
 
 			wg.Add(1)
@@ -308,6 +324,7 @@ func (v *ForwardWorker) Start(ctx context.Context) error {
 		defer wg.Done()
 
 		// When startup, we try to wait for client to publish streams.
+		// 启动时等待客户端发布流。
 		select {
 		case <-ctx.Done():
 		case <-time.After(3 * time.Second):

@@ -42,7 +42,14 @@ type RecordWorker struct {
 	streams sync.Map
 }
 
+// NewRecordWorker 创建并返回一个新的RecordWorker实例。
+// 该函数初始化了一个RecordWorker对象，其中包含一个用于处理消息的通道。
+// 返回值:
+//
+//	*RecordWorker: 新创建的RecordWorker实例。
 func NewRecordWorker() *RecordWorker {
+	// 初始化一个容量为1024的消息通道，用于接收SrsOnHlsObject类型的消息。
+	// 选择1024作为通道的容量是为了平衡消息处理的性能和内存消耗。
 	return &RecordWorker{
 		msgs: make(chan *SrsOnHlsObject, 1024),
 	}
@@ -591,16 +598,30 @@ func (v *RecordWorker) QueryTask(uuid string) *RecordM3u8Stream {
 	return target
 }
 
+// Start 是 RecordWorker 的核心方法，用于启动记录工作器。
+// 该方法的主要功能包括：
+// 1. 从 Redis 中加载所有未完成的 HLS 记录任务；
+// 2. 初始化这些任务并将其存储在内存中；
+// 3. 处理新的 HLS 段消息，创建或更新对应的记录任务；
+// 4. 启动后台协程以持续处理消息队列中的新任务。
+// 参数：
+// - ctx: 上下文对象，用于控制生命周期和取消操作。
+// 返回值：
+// - error: 如果发生错误，则返回具体的错误信息；否则返回 nil 表示成功。
 func (v *RecordWorker) Start(ctx context.Context) error {
+	// 初始化 WaitGroup 用于同步 goroutine。
 	wg := &v.wg
 
+	// 创建一个可取消的上下文，用于优雅地关闭工作器。
 	ctx, cancel := context.WithCancel(ctx)
 	v.cancel = cancel
 
+	// 添加日志上下文以便更好地追踪日志来源。
 	ctx = logger.WithContext(ctx)
 	logger.Tf(ctx, "Record: start a worker")
 
 	// Load all objects from redis.
+	// 从 Redis 加载所有未完成的 HLS 记录任务。
 	if objs, err := rdb.HGetAll(ctx, SRS_RECORD_M3U8_WORKING).Result(); err != nil && err != redis.Nil {
 		return errors.Wrapf(err, "hgetall %v", SRS_RECORD_M3U8_WORKING)
 	} else if len(objs) > 0 {
@@ -613,11 +634,13 @@ func (v *RecordWorker) Start(ctx context.Context) error {
 			}
 
 			// Initialize object.
+			// 初始化加载的任务对象。
 			if err := m3u8LocalObj.Initialize(ctx, v); err != nil {
 				return errors.Wrapf(err, "init %v", m3u8LocalObj.String())
 			}
 
 			// Save in memory object.
+			// 将任务对象存储到内存中。
 			v.streams.Store(m3u8URL, &m3u8LocalObj)
 
 			wg.Add(1)
@@ -631,10 +654,12 @@ func (v *RecordWorker) Start(ctx context.Context) error {
 	}
 
 	// Create M3u8 object from message.
+	// 根据消息创建 M3u8 对象。
 	buildM3u8Object := func(ctx context.Context, msg *SrsOnHlsObject) error {
 		logger.Tf(ctx, "Record: Got message %v", msg.String())
 
 		// Filter the stream by glob filters.
+		// 根据 glob 过滤规则筛选流。
 		var globFilters []string
 		if globs, err := rdb.HGet(ctx, SRS_RECORD_PATTERNS, "globs").Result(); err != nil && err != redis.Nil {
 			return errors.Wrapf(err, "hget %v globs", SRS_RECORD_PATTERNS)
@@ -645,6 +670,7 @@ func (v *RecordWorker) Start(ctx context.Context) error {
 		}
 
 		// If glob filters are empty, ignore it, and record all streams.
+		// 如果没有设置 glob 过滤规则，则记录所有流。
 		if len(globFilters) > 0 {
 			var globMatched bool
 			streamURL := fmt.Sprintf("/%v/%v", msg.Msg.App, msg.Msg.Stream)
@@ -664,6 +690,7 @@ func (v *RecordWorker) Start(ctx context.Context) error {
 		}
 
 		// Load stream local object.
+		// 加载或创建本地流对象。
 		var m3u8LocalObj *RecordM3u8Stream
 		var freshObject bool
 		if obj, loaded := v.streams.LoadOrStore(msg.Msg.M3u8URL, &RecordM3u8Stream{
@@ -673,6 +700,7 @@ func (v *RecordWorker) Start(ctx context.Context) error {
 		}
 
 		// Initialize the fresh object.
+		// 初始化新创建的对象。
 		if freshObject {
 			if err := m3u8LocalObj.Initialize(ctx, v); err != nil {
 				return errors.Wrapf(err, "init %v", m3u8LocalObj.String())
@@ -680,14 +708,17 @@ func (v *RecordWorker) Start(ctx context.Context) error {
 		}
 
 		// Append new ts file to object.
+		// 将新的 TS 文件添加到对象中。
 		m3u8LocalObj.addMessage(ctx, msg)
 
 		// Always save the object to redis, for reloading it when restart.
+		// 始终将对象保存到 Redis 中，以便在重启时重新加载。
 		if err := m3u8LocalObj.saveObject(ctx); err != nil {
 			return errors.Wrapf(err, "save %v", m3u8LocalObj.String())
 		}
 
 		// Serve object if fresh one.
+		// 如果是新创建的对象，则启动服务。
 		if freshObject {
 			wg.Add(1)
 			go func() {
@@ -702,6 +733,7 @@ func (v *RecordWorker) Start(ctx context.Context) error {
 	}
 
 	// Process all messages about HLS ts segments.
+	// 处理所有关于 HLS TS 段的消息。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

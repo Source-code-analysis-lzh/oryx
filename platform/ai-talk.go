@@ -1292,6 +1292,9 @@ type TalkServer struct {
 	lock sync.Mutex
 }
 
+// NewTalkServer 创建并返回一个新的 TalkServer 实例。
+// 该函数初始化 TalkServer 的 stages 字段为一个空的 Stage 切片。
+// 主要用途：在需要一个新的 TalkServer 实例时调用，为其分配内存并初始化。
 func NewTalkServer() *TalkServer {
 	return &TalkServer{
 		stages: []*Stage{},

@@ -35,6 +35,10 @@ type CameraWorker struct {
 	tasks sync.Map
 }
 
+// NewCameraWorker 创建并返回一个新的 CameraWorker 实例。
+// 该函数不接受任何参数。
+// 返回值是一个指向 CameraWorker 结构的指针，表示新创建的相机工作器实例。
+// 此函数用于初始化相机工作器，使其可以开始执行相机相关的任务。
 func NewCameraWorker() *CameraWorker {
 	return &CameraWorker{}
 }
@@ -487,6 +491,14 @@ func (v *CameraWorker) Close() error {
 	return nil
 }
 
+// Start 方法用于启动 CameraWorker，加载并运行摄像头任务。
+// 参数:
+//
+//	ctx - 上下文对象，用于控制任务的生命周期和超时管理。
+//
+// 返回值:
+//
+//	error - 如果在加载或初始化任务时发生错误，则返回非 nil 的错误。
 func (v *CameraWorker) Start(ctx context.Context) error {
 	wg := &v.wg
 
@@ -519,6 +531,7 @@ func (v *CameraWorker) Start(ctx context.Context) error {
 	}
 
 	// Load all configurations from redis.
+	// 定义一个函数用于从 Redis 加载配置并启动任务。
 	loadTasks := func() error {
 		configItems, err := rdb.HGetAll(ctx, SRS_CAMERA_CONFIG).Result()
 		if err != nil && err != redis.Nil {

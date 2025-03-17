@@ -35,6 +35,10 @@ type TranscodeWorker struct {
 	task *TranscodeTask
 }
 
+// NewTranscodeWorker 创建并返回一个新的转码工作器实例。
+// 该函数首先创建一个 TranscodeWorker 结构体实例，然后为其初始化一个转码任务。
+// 最后，它将该转码任务与 TranscodeWorker 实例关联起来，形成双向引用关系。
+// 这种设计模式有助于在转码任务和其对应的工作器之间进行灵活的操作和信息交换。
 func NewTranscodeWorker() *TranscodeWorker {
 	v := &TranscodeWorker{}
 	v.task = NewTranscodeTask()
@@ -192,19 +196,32 @@ func (v *TranscodeWorker) Close() error {
 	return nil
 }
 
+// Start 方法用于启动转码工作器（TranscodeWorker），初始化全局转码任务，并处理 Redis 中未完成的任务。
+// 参数：
+//
+//	ctx - 上下文对象，用于控制生命周期和超时管理。
+//
+// 返回值：
+//
+//	error - 如果加载或清理任务失败，则返回错误；否则返回 nil。
 func (v *TranscodeWorker) Start(ctx context.Context) error {
+	// 初始化 WaitGroup，用于等待转码任务的完成。
 	wg := &v.wg
 
+	// 创建一个可取消的上下文，用于在需要时停止转码工作器。
 	ctx, cancel := context.WithCancel(ctx)
 	v.cancel = cancel
 
+	// 将日志功能添加到上下文中，以便记录日志信息。
 	ctx = logger.WithContext(ctx)
 	logger.Tf(ctx, "transcode start a worker")
 
 	// Load tasks from redis and force to kill all.
+	// 从 Redis 加载所有未完成的转码任务，并强制终止它们。
 	if objs, err := rdb.HGetAll(ctx, SRS_TRANSCODE_TASK).Result(); err != nil && err != redis.Nil {
 		return errors.Wrapf(err, "hgetall %v", SRS_TRANSCODE_TASK)
 	} else if len(objs) > 0 {
+		// 遍历每个任务，解析并清理仍在运行的任务。
 		for uuid, obj := range objs {
 			logger.Tf(ctx, "Load task %v object %v", uuid, obj)
 
@@ -213,31 +230,37 @@ func (v *TranscodeWorker) Start(ctx context.Context) error {
 				return errors.Wrapf(err, "unmarshal %v %v", uuid, obj)
 			}
 
+			// 如果任务有有效的 PID，则尝试终止该任务。
 			if task.PID > 0 {
 				task.cleanup(ctx)
 			}
 		}
 
+		// 删除 Redis 中的转码任务记录。
 		if err = rdb.Del(ctx, SRS_TRANSCODE_TASK).Err(); err != nil && err != redis.Nil {
 			return errors.Wrapf(err, "del %v", SRS_TRANSCODE_TASK)
 		}
 	}
 
 	// Start global transcode task.
+	// 启动全局转码任务。
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
 
 		task := v.task
+		// 循环执行转码任务，直到上下文被取消。
 		for ctx.Err() == nil {
 			var duration time.Duration
 			if err := task.Run(ctx); err != nil {
+				// 如果任务执行失败，记录警告日志，并设置较长的重试间隔。
 				logger.Wf(ctx, "run task %v err %+v", task.String(), err)
 				duration = 10 * time.Second
 			} else {
 				duration = 3 * time.Second
 			}
 
+			// 等待上下文取消或指定的重试间隔结束。
 			select {
 			case <-ctx.Done():
 			case <-time.After(duration):

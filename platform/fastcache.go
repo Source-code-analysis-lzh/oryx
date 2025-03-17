@@ -14,6 +14,9 @@ type FastCache struct {
 	HLSLowLatency bool
 }
 
+// NewFastCache 创建并返回一个新的 FastCache 实例。
+// 该函数不需要任何参数。
+// 返回值是一个指向 FastCache 结构的指针，表示新创建的缓存实例。
 func NewFastCache() *FastCache {
 	return &FastCache{}
 }
